@@ -28,6 +28,8 @@ the appropriate repo root, package, or `templates/<type>/` path.
 | [rotate_changelog.py](rotate_changelog.py) | Move old changelog day blocks into archive files. |
 | [flatten_broken_md_links.py](flatten_broken_md_links.py) | Repair or flatten broken Markdown links. |
 | [dist_clean.sh](dist_clean.sh) | Remove build artifacts, caches, and dependency installs. |
+| [extract_slide_template.py](extract_slide_template.py) | Rebuild the runtime template from local reference decks. |
+| [probe_sources.py](probe_sources.py) | Capture live provider evidence and refresh the source-probe report. |
 
 ## Template devel scripts
 
@@ -54,5 +56,43 @@ For Python scripts, use the repo bootstrap environment:
 source source_me.sh && python3 devel/<script>.py
 ```
 
-Run individual scripts with `--help` for current options. Keep command details
-in script help output instead of duplicating them here.
+Use `--help` only for scripts that document that option. The two movie-slide
+maintainer tools provide non-mutating help:
+
+```bash
+source source_me.sh && python3 devel/extract_slide_template.py --help
+source source_me.sh && python3 devel/probe_sources.py --help
+```
+
+## Extract the slide template
+
+`extract_slide_template.py` validates the hidden movie slide and rebuilds the
+committed runtime template. It requires these ignored, maintainer-owned inputs:
+
+- `SLIDE_ARTIFACTS/class02b-pre-film_content.odp`
+- `SLIDE_ARTIFACTS/class02b-pre-film_content.pptx`
+
+Run it only when intentionally refreshing the design authority:
+
+```bash
+source source_me.sh && python3 devel/extract_slide_template.py
+```
+
+The command replaces `template/movie_slide_template.pptx` after validating the
+source page, master, layout, dimensions, fonts, and semantic anchors.
+
+## Probe live sources
+
+`probe_sources.py` exercises TMDB, IMDb, Rotten Tomatoes, and Metacritic for the
+five maintained sample movies. It requires network access, installed project
+dependencies, and a valid `read_token` in `tmdb_key.yml`.
+
+```bash
+source source_me.sh && python3 devel/probe_sources.py
+```
+
+The command replaces ignored captures and runtime cache data under
+`output_smoke/movie_source_probe/`, then refreshes
+`../docs/active_plans/audits/movie_source_probe_report.md`. Captures can include
+provider response content; the manifest records that credential values are not
+captured.

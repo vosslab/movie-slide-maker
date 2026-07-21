@@ -1,0 +1,5 @@
+python-pptx
+imdbinfo
+curl_cffi
+pyyaml
+pillow

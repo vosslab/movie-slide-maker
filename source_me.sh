@@ -18,13 +18,11 @@ source ~/.bashrc
 export PYTHONUNBUFFERED=1
 export PYTHONDONTWRITEBYTECODE=1
 
-# --- Optional: repo-root import path (disabled by default) -------------------
-# Uncomment ONLY if this repo needs its repo-root modules importable when
-# commands run from a subdirectory without installing the repo -- most commonly
-# a repo-root package imported package-qualified (e.g. `import mypkg.thing`),
-# or scripts under tools/ or tests/ that import repo-root modules.
+# --- Repo-root import path ---------------------------------------------------
+# Make the repo-root slide_maker package importable for maintainer and E2E
+# scripts that run from subdirectories without installing the package.
 # Must come after sourcing ~/.bashrc, which clears PYTHONPATH.
 # Assumes the repo is inside a Git work tree (git rev-parse).
-#REPO_ROOT="$(git rev-parse --show-toplevel)"
-#export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
-#unset REPO_ROOT
+MOVIE_SLIDE_MAKER_ROOT="$(git rev-parse --show-toplevel)"
+export PYTHONPATH="$MOVIE_SLIDE_MAKER_ROOT${PYTHONPATH:+:$PYTHONPATH}"
+unset MOVIE_SLIDE_MAKER_ROOT
