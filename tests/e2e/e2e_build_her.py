@@ -8,6 +8,7 @@ import tempfile
 # PIP3 modules
 import pptx
 import PIL.Image #pillow
+import pptx.oxml.ns
 import pptx.enum.text
 import pptx.enum.shapes
 
@@ -28,6 +29,7 @@ import slide_maker.slide_builder
 EXPECTED_LABELS = (
 	"IMDB rating",
 	"Critics: RT",
+	"Audience:",
 	"Genre:",
 	"Director:",
 	"Run time:",
@@ -86,11 +88,77 @@ def verify_text_roles(slide: object) -> None:
 	for label in EXPECTED_LABELS:
 		require(label in outline.text, f"Built outline is missing literal label: {label}")
 	levels = [paragraph.level for paragraph in outline.text_frame.paragraphs]
-	require(levels == [0, 1, 1, 0, 0, 0, 0], "Built outline hierarchy changed")
+	require(levels == [0, 1, 1, 1, 0, 0, 0, 0], "Built outline hierarchy changed")
 	for shape in (title, outline):
 		for paragraph in shape.text_frame.paragraphs:
 			for run in paragraph.runs:
 				require(run.font.name == "OpenDyslexic", "Built text font changed")
+	imdb_paragraph = outline.text_frame.paragraphs[1]
+	score_runs = [run for run in imdb_paragraph.runs if run.text == "8.0"]
+	require(len(score_runs) == 1, "Built IMDb score run is absent or ambiguous")
+	run_properties = score_runs[0]._r.get_or_add_rPr()
+	highlight = run_properties.find(pptx.oxml.ns.qn("a:highlight"))
+	require(highlight is not None, "Built IMDb score has no color highlight")
+	color = highlight.find(pptx.oxml.ns.qn("a:srgbClr"))
+	require(color is not None, "Built IMDb score highlight has no explicit RGB color")
+	require(
+		color.get("val") == slide_maker.slide_builder.IMDB_SCORE_HIGHLIGHT,
+		"Built IMDb score highlight color changed",
+	)
+	require("792k votes" in imdb_paragraph.text, "Built IMDb vote count is not compact")
+	ratings_text = outline.text_frame.paragraphs[2].text
+	require(
+		slide_maker.emoji_marks.rt_critic_mark_for_score(95) in ratings_text,
+		"Built critics score has no high-score mark",
+	)
+	require(
+		slide_maker.emoji_marks.rt_audience_mark_for_score(82)
+		in outline.text_frame.paragraphs[3].text,
+		"Built audience score has no Popcornmeter mark",
+	)
+
+
+#============================================
+def verify_compact_count_examples() -> None:
+	"""Verify the requested compact count boundaries and precision."""
+	examples = {
+		435_444: "435k",
+		1_200_000: "1.2M",
+		2_300: "2.3k",
+		1_000: "1.0k",
+		999_499: "999k",
+		999_500: "1.0M",
+	}
+	for count, expected in examples.items():
+		actual = slide_maker.slide_builder.format_compact_count(count)
+		require(actual == expected, f"Compact count {count} rendered as {actual}, expected {expected}")
+
+
+#============================================
+def verify_rating_mark_boundaries() -> None:
+	"""Verify the requested Rotten Tomatoes critic and audience tiers."""
+	critic_examples = {
+		59: slide_maker.emoji_marks.ROTTEN_MARK,
+		60: slide_maker.emoji_marks.TOMATO_MARK,
+		80: slide_maker.emoji_marks.TOMATO_MARK,
+		81: (
+			slide_maker.emoji_marks.TOMATO_MARK
+			+ slide_maker.emoji_marks.TROPHY_MARK
+		),
+	}
+	for score, expected in critic_examples.items():
+		actual = slide_maker.emoji_marks.rt_critic_mark_for_score(score)
+		require(actual == expected, f"Critics score {score} used the wrong display mark")
+	audience_examples = {
+		59: (
+			slide_maker.emoji_marks.POPCORN_MARK
+			+ slide_maker.emoji_marks.THUMBS_DOWN_MARK
+		),
+		60: slide_maker.emoji_marks.POPCORN_MARK,
+	}
+	for score, expected in audience_examples.items():
+		actual = slide_maker.emoji_marks.rt_audience_mark_for_score(score)
+		require(actual == expected, f"Audience score {score} used the wrong display mark")
 
 
 #============================================
@@ -144,6 +212,7 @@ def main() -> None:
 			imdb_rating=8.0,
 			imdb_votes=792315,
 			rt_tomatometer=95,
+			rt_audience_score=82,
 			rt_state="fresh",
 			rt_consensus="Sweet, soulful, and smart, Her uses its scenario to impart wisdom.",
 			metascore=91,
@@ -157,11 +226,18 @@ def main() -> None:
 		)
 		require(output_path.is_file(), "Slide builder did not write the presentation")
 		presentation = pptx.Presentation(output_path)
+		require(
+			presentation.slide_width == slide_maker.slide_builder.PAGE_WIDTH
+			and presentation.slide_height == slide_maker.slide_builder.PAGE_HEIGHT,
+			"Built presentation does not use the exact lecture page size",
+		)
 		template_slide = presentation.slides[0]
 		require(template_slide._element.get("show") == "0", "Template slide became visible")
 		built_slide = find_built_slide(presentation)
 		verify_text_roles(built_slide)
 		verify_poster_role(built_slide, template_slide)
+		verify_compact_count_examples()
+		verify_rating_mark_boundaries()
 		print(f"Slide-builder E2E passed: {output_path}")
 
 

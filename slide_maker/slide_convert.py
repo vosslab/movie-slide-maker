@@ -6,13 +6,13 @@ import re
 import pathlib
 import zipfile
 import tempfile
-import subprocess
 import xml.etree.ElementTree
 
 # PIP3 modules
 import pptx
 
 # local repo modules
+import slide_maker.libreoffice_runner
 import slide_maker.slide_builder
 
 
@@ -31,12 +31,15 @@ REQUIRED_ROLES = (
 REQUIRED_FIELDS = (
 	"IMDB rating",
 	"Critics: RT",
+	"Audience:",
 	"Genre:",
 	"Director:",
 	"Run time:",
 	"Review Summary:",
 )
 GEOMETRY_TOLERANCE_CM = 0.1
+EXPECTED_PAGE_WIDTH_CM = 28.0
+EXPECTED_PAGE_HEIGHT_CM = 17.5
 
 
 class SlideConversionError(RuntimeError):
@@ -150,11 +153,11 @@ def movie_pages(
 
 
 #============================================
-def validate_landscape(
+def validate_page_size(
 	page: xml.etree.ElementTree.Element,
 	styles_root: xml.etree.ElementTree.Element,
 ) -> None:
-	"""Validate the converted movie slide's referenced page layout is landscape."""
+	"""Validate the converted movie slide's exact destination page size."""
 	master_name = page.get(f"{{{DRAW_NS}}}master-page-name")
 	require(bool(master_name), "Converted movie slide has no master-page reference")
 	master_pages = [
@@ -176,7 +179,14 @@ def validate_landscape(
 	require(bool(width_value and height_value), "Converted movie slide has no page dimensions")
 	width_cm = length_cm(width_value)
 	height_cm = length_cm(height_value)
-	require(width_cm > height_cm, "Converted movie slide is not landscape")
+	require(
+		abs(width_cm - EXPECTED_PAGE_WIDTH_CM) < 0.0001,
+		f"Converted movie slide width is {width_cm:g} cm, expected {EXPECTED_PAGE_WIDTH_CM:g} cm",
+	)
+	require(
+		abs(height_cm - EXPECTED_PAGE_HEIGHT_CM) < 0.0001,
+		f"Converted movie slide height is {height_cm:g} cm, expected {EXPECTED_PAGE_HEIGHT_CM:g} cm",
+	)
 
 
 #============================================
@@ -309,7 +319,7 @@ def validate_odp(
 		pages = movie_pages(content_root, expected_movie_slides)
 		for index, (page, source_shapes) in enumerate(zip(pages, source_shape_sets, strict=True), 1):
 			frames = named_frames(page)
-			validate_landscape(page, styles_root)
+			validate_page_size(page, styles_root)
 			validate_displayed_fields(page)
 			validate_poster(archive, page)
 			validate_geometry(frames, source_shapes)
@@ -336,18 +346,13 @@ def convert_presentation(
 	output_odp_path.parent.mkdir(parents=True, exist_ok=True)
 	with tempfile.TemporaryDirectory() as temporary_directory:
 		conversion_dir = pathlib.Path(temporary_directory)
-		profile_uri = conversion_dir.joinpath("libreoffice_profile").resolve().as_uri()
-		command = [
-			"soffice",
-			f"-env:UserInstallation={profile_uri}",
-			"--headless",
-			"--convert-to",
+		profile_directory = conversion_dir / "libreoffice_profile"
+		result = slide_maker.libreoffice_runner.convert_document(
+			scratch_pptx_path,
 			"odp",
-			"--outdir",
-			str(conversion_dir),
-			str(scratch_pptx_path.resolve()),
-		]
-		result = subprocess.run(command, capture_output=True, text=True, check=False)
+			conversion_dir,
+			profile_directory,
+		)
 		converted_path = conversion_dir / f"{scratch_pptx_path.stem}.odp"
 		diagnostic = result.stderr.strip() or result.stdout.strip() or "no LibreOffice diagnostic"
 		require(result.returncode == 0, f"LibreOffice conversion failed: {diagnostic}")

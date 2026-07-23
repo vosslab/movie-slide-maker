@@ -10,6 +10,7 @@ import xml.etree.ElementTree
 
 # PIP3 modules
 import pptx
+import pptx.util
 import pptx.enum.text
 
 
@@ -412,6 +413,8 @@ def write_template(
 	require(source_pptx.is_file(), f"Required companion PPTX is absent: {source_pptx}")
 	presentation = pptx.Presentation(source_pptx)
 	validate_pptx_structure(presentation)
+	presentation.slide_width = pptx.util.Cm(EXPECTED_PAGE_WIDTH_CM)
+	presentation.slide_height = pptx.util.Cm(EXPECTED_PAGE_HEIGHT_CM)
 	slide_index, slide, anchors = select_pptx_movie_slide(presentation)
 	for role, shape in anchors.items():
 		shape.name = ANCHOR_NAMES[role]
@@ -428,6 +431,11 @@ def validate_written_template(output_path: pathlib.Path) -> dict[str, object]:
 	require(output_path.is_file(), f"Generated template is absent: {output_path}")
 	presentation = pptx.Presentation(output_path)
 	validate_pptx_structure(presentation)
+	require(
+		presentation.slide_width == pptx.util.Cm(EXPECTED_PAGE_WIDTH_CM)
+		and presentation.slide_height == pptx.util.Cm(EXPECTED_PAGE_HEIGHT_CM),
+		"Generated template page size is not the exact authoritative ODP size",
+	)
 	require(len(presentation.slides) == 1, "Generated template does not contain one slide")
 	slide = presentation.slides[0]
 	require(slide._element.get("show") == "0", "Generated template slide is visible")

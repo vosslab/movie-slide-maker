@@ -1,4 +1,4 @@
-"""Fetch Rotten Tomatoes identity, Tomatometer, and critics consensus."""
+"""Fetch Rotten Tomatoes identity, critic, audience, and consensus values."""
 
 # Standard Library
 import re
@@ -29,6 +29,7 @@ class RtRating:
 	year: int
 	directors: list[str]
 	rt_tomatometer: int
+	rt_audience_score: int | None
 	rt_state: str
 	rt_consensus: str
 	canonical_url: str
@@ -147,6 +148,36 @@ def _required_mapping(
 
 
 #============================================
+def _optional_audience_score(
+	scorecard: dict,
+	identity: str,
+	attempted: str,
+) -> int | None:
+	"""Return the optional Popcornmeter score when Rotten Tomatoes publishes it."""
+	if "audienceScore" not in scorecard or scorecard["audienceScore"] is None:
+		return None
+	audience_data = scorecard["audienceScore"]
+	_require(
+		isinstance(audience_data, dict),
+		identity,
+		attempted,
+		"media-scorecard-json.audienceScore was not an object",
+	)
+	if "score" not in audience_data or audience_data["score"] is None:
+		return None
+	score_value = audience_data["score"]
+	_require(
+		isinstance(score_value, (str, int)) and str(score_value).isdigit(),
+		identity,
+		attempted,
+		"Popcornmeter was invalid",
+	)
+	audience_score = int(score_value)
+	_require(0 <= audience_score <= 100, identity, attempted, "Popcornmeter was outside 0-100")
+	return audience_score
+
+
+#============================================
 def fetch_rt_rating(
 	imdb_id: str,
 	rt_slug: str,
@@ -154,7 +185,7 @@ def fetch_rt_rating(
 	expected_year: int,
 	expected_directors: list[str],
 ) -> RtRating:
-	"""Fetch an identity-checked Rotten Tomatoes critics result.
+	"""Fetch identity-checked Rotten Tomatoes critic and audience values.
 
 	Args:
 		imdb_id: IMDb id used as the cross-provider identity anchor.
@@ -164,7 +195,8 @@ def fetch_rt_rating(
 		expected_directors: Directors resolved by the upstream TMDB provider.
 
 	Returns:
-		The current identity-bearing Tomatometer values and critics consensus.
+		The current identity-bearing Tomatometer, optional Popcornmeter, and
+		critics consensus.
 
 	Raises:
 		ValueError: An input identity is malformed or incomplete.
@@ -259,6 +291,7 @@ def fetch_rt_rating(
 	)
 	tomatometer = int(critics_score)
 	_require(0 <= tomatometer <= 100, identity, attempted, "Tomatometer was outside 0-100")
+	audience_score = _optional_audience_score(scorecard, identity, attempted)
 	_require(
 		page.consensus is not None and bool(page.consensus.strip()),
 		identity,
@@ -271,6 +304,7 @@ def fetch_rt_rating(
 		year=year,
 		directors=directors,
 		rt_tomatometer=tomatometer,
+		rt_audience_score=audience_score,
 		rt_state=slide_maker.emoji_marks.rt_state_for_score(tomatometer),
 		rt_consensus=page.consensus,
 		canonical_url=attempted,

@@ -59,8 +59,11 @@ def validate_input_classification() -> None:
 	"""Validate title-year syntax, numeric titles, and empty-input rejection."""
 	require_input("Her 2013", "Her", 2013)
 	require_input("Her (2013)", "Her", 2013)
-	for numeric_title in ("1917", "1984", "42"):
+	require_input("Godzilla Minus One/2023", "Godzilla Minus One", 2023)
+	require_input("Godzilla Minus One / 2023", "Godzilla Minus One", 2023)
+	for numeric_title in ("1917", "1984", "2001", "42"):
 		require_input(numeric_title, numeric_title, None)
+	require_input("2001: A Space Odyssey", "2001: A Space Odyssey", None)
 	empty_rejected = False
 	try:
 		slide_maker.movie_input.classify_movie_input("  ")

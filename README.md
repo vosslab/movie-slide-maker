@@ -20,8 +20,11 @@ committed teaching template while each provider remains responsible for its own 
 - Accept a title and year, IMDb id or URL, or TMDB id or URL.
 - Anchor cross-provider identity on the IMDb id before building output.
 - Combine TMDB metadata and poster art with IMDb, Rotten Tomatoes, and Metacritic ratings.
+- Highlight the IMDb score, compact large vote counts, and distinguish critics from the optional
+  Rotten Tomatoes Popcornmeter.
 - Preserve the template's labels, bullet hierarchy, OpenDyslexic typography, and poster region.
-- Validate the converted ODP by semantic role and tolerant geometry before deleting scratch files.
+- Preserve the lecture deck's exact 28 by 17.5 cm page size and validate the converted ODP by
+  semantic role and geometry before deleting scratch files.
 - Stop before output when required identity, critics consensus, Metascore, or poster data is absent.
 
 The resulting slide is organized around a centered `Title (Year)` heading, a teaching outline with
@@ -75,7 +78,7 @@ The finished workflow uses current data gathered during each run:
 | --- | --- |
 | TMDB | Title, year, plot, genres, runtime, director, ids, and poster |
 | IMDb | Rating and vote count |
-| Rotten Tomatoes | Tomatometer state and critics consensus |
+| Rotten Tomatoes | Tomatometer, optional Popcornmeter, and critics consensus |
 | Metacritic | Metascore and display band |
 
 TMDB access requires a v4 read token. Copy `tmdb_key_sample.yml` to the ignored `tmdb_key.yml` and

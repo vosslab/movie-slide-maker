@@ -537,9 +537,19 @@ def probe_rt(sample: SampleMovie) -> ProbeResult:
 	tomatometer = int(scorecard["criticsScore"]["score"])
 	if not 0 <= tomatometer <= 100:
 		raise ValueError("RT Tomatometer is outside 0-100")
+	audience_data = scorecard.get("audienceScore")
+	audience_score = None
+	if isinstance(audience_data, dict) and audience_data.get("score") is not None:
+		audience_score = int(audience_data["score"])
+		if not 0 <= audience_score <= 100:
+			raise ValueError("RT Popcornmeter is outside 0-100")
 	consensus_present = page.consensus is not None and bool(page.consensus.strip())
 	absence = "none" if consensus_present else "CLEAN: critics consensus missing"
-	observed = f"tomatometer={tomatometer}; consensus={'present' if consensus_present else 'absent'}"
+	audience_text = str(audience_score) if audience_score is not None else "absent"
+	observed = (
+		f"tomatometer={tomatometer}; audience={audience_text}; "
+		f"consensus={'present' if consensus_present else 'absent'}"
+	)
 	result = ProbeResult(
 		source="Rotten Tomatoes",
 		movie=f"{sample.title} ({sample.year})",
@@ -549,9 +559,10 @@ def probe_rt(sample: SampleMovie) -> ProbeResult:
 		correct=True,
 		path="media-scorecard-json + What to Know HTML",
 		keys=(
-			"vanity.{title,lifecycleWindow.date}; where-to-watch-json.director; "
-			"media-scorecard-json.criticsScore.score; Critics Consensus + p"
-		),
+				"vanity.{title,lifecycleWindow.date}; where-to-watch-json.director; "
+				"media-scorecard-json.{criticsScore.score,audienceScore.score}; "
+				"Critics Consensus + p"
+			),
 		observed=observed,
 		blocking=blocking_summary(record.statuses),
 		target=record.url,

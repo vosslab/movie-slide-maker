@@ -43,11 +43,16 @@ def main() -> None:
 	require(result.year == 2025, "RT release year resolved a different movie")
 	require("Ryan Coogler" in result.directors, "RT director resolved a different movie")
 	require(0 <= result.rt_tomatometer <= 100, "RT Tomatometer is outside 0-100")
+	require(
+		result.rt_audience_score is None or 0 <= result.rt_audience_score <= 100,
+		"RT Popcornmeter is outside 0-100",
+	)
 	require(result.rt_state in ("fresh", "rotten"), "RT score state is invalid")
 	require(result.rt_consensus.strip(), "RT critics consensus is missing")
 	print(
 		f"Rotten Tomatoes E2E passed: {result.imdb_id}; {result.title} ({result.year}); "
-		f"Tomatometer={result.rt_tomatometer}; state={result.rt_state}"
+		f"Tomatometer={result.rt_tomatometer}; Popcornmeter={result.rt_audience_score}; "
+		f"state={result.rt_state}"
 	)
 
 

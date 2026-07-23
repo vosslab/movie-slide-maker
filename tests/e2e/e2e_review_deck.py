@@ -157,7 +157,7 @@ def validate_deck(
 		require(len(pages) == len(result.page_paths), "ODP, accepted, and PNG page counts differ")
 		page_titles = []
 		for page, record in zip(pages, result.accepted, strict=True):
-			slide_maker.slide_convert.validate_landscape(page, styles_root)
+			slide_maker.slide_convert.validate_page_size(page, styles_root)
 			validate_page_semantics(archive, page, record)
 			page_titles.append(f"{record.title} ({record.year})")
 	for title in page_titles:

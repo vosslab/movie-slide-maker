@@ -19,6 +19,7 @@ import slide_maker.moviedata
 import slide_maker.rt_scraper
 import slide_maker.tmdb_client
 import slide_maker.imdb_ratings
+import slide_maker.libreoffice_runner
 import slide_maker.slide_builder
 import slide_maker.slide_convert
 import slide_maker.movie_pipeline
@@ -347,19 +348,16 @@ def render_deck_pages(
 	"""Render and retain exactly one nonempty PNG for each accepted movie page."""
 	with tempfile.TemporaryDirectory() as temporary_directory:
 		render_directory = pathlib.Path(temporary_directory)
-		profile_uri = render_directory.joinpath("libreoffice_profile").resolve().as_uri()
-		run_command(
-			[
-				"soffice",
-				f"-env:UserInstallation={profile_uri}",
-				"--headless",
-				"--convert-to",
-				"pdf",
-				"--outdir",
-				str(render_directory),
-				str(output_path.resolve()),
-			],
-			"LibreOffice review-deck PDF render failed",
+		result = slide_maker.libreoffice_runner.convert_document(
+			output_path,
+			"pdf",
+			render_directory,
+			render_directory / "libreoffice_profile",
+		)
+		diagnostic = result.stderr.strip() or result.stdout.strip() or "no command diagnostic"
+		require(
+			result.returncode == 0,
+			f"LibreOffice review-deck PDF render failed: {diagnostic}",
 		)
 		pdf_path = render_directory / f"{output_path.stem}.pdf"
 		require(pdf_path.is_file(), f"LibreOffice did not render review deck: {pdf_path}")

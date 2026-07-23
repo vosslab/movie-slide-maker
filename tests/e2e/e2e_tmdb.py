@@ -58,6 +58,7 @@ def main() -> None:
 			imdb_rating=5.0,
 			imdb_votes=1,
 			rt_tomatometer=60,
+			rt_audience_score=60,
 			rt_state="fresh",
 			rt_consensus="Provider-specific value supplied during orchestration.",
 			metascore=50,

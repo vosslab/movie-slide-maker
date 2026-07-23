@@ -99,6 +99,30 @@ def injected_imdb(imdb_id: str) -> slide_maker.imdb_ratings.ImdbRating:
 
 
 #============================================
+def validate_imdb_provider_labels() -> None:
+	"""Accept differing IMDb labels when the exact provider id matches TMDB."""
+	movie = slide_maker.tmdb_client.TmdbMovie(
+		title="Godzilla Minus One",
+		year=2023,
+		plot="Japan confronts a giant monster after World War II.",
+		genres=["Science Fiction"],
+		runtime_minutes=124,
+		directors=["Takashi Yamazaki"],
+		tmdb_id=940721,
+		imdb_id="tt23289160",
+		poster_path="unused",
+	)
+	result = slide_maker.imdb_ratings.ImdbRating(
+		imdb_id="tt23289160",
+		title="Gojira Mainasu Wan",
+		year=2024,
+		imdb_rating=7.6,
+		imdb_votes=228245,
+	)
+	slide_maker.movie_pipeline._validate_imdb_rating(result, movie)
+
+
+#============================================
 def injected_rt(
 	imdb_id: str,
 	rt_slug: str,
@@ -114,6 +138,7 @@ def injected_rt(
 		year=expected_year,
 		directors=expected_directors,
 		rt_tomatometer=95,
+		rt_audience_score=82,
 		rt_state="fresh",
 		rt_consensus="Sweet, soulful, and smart, Her imparts wisdom about relationships.",
 		canonical_url="https://www.rottentomatoes.com/m/her",
@@ -165,6 +190,7 @@ def incomplete_rt(
 		year=result.year,
 		directors=result.directors,
 		rt_tomatometer=result.rt_tomatometer,
+		rt_audience_score=result.rt_audience_score,
 		rt_state=result.rt_state,
 		rt_consensus="",
 		canonical_url=result.canonical_url,
@@ -198,7 +224,7 @@ def validate_product(product_path: pathlib.Path, expected_title: str) -> None:
 	with zipfile.ZipFile(product_path) as archive:
 		content = archive.read("content.xml").decode("utf-8")
 	require(expected_title in content, f"Pipeline product is missing {expected_title!r}")
-	for label in ("IMDB rating", "Critics: RT", "Review Summary:"):
+	for label in ("IMDB rating", "Critics: RT", "Audience:", "Review Summary:"):
 		require(label in content, f"Pipeline product is missing label: {label}")
 
 
@@ -262,6 +288,7 @@ def run_live_her() -> pathlib.Path:
 #============================================
 def main() -> None:
 	"""Run injected success, injected abort, then the live Her product path."""
+	validate_imdb_provider_labels()
 	run_injected_success()
 	run_injected_abort()
 	product_path = run_live_her()

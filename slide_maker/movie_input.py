@@ -34,6 +34,7 @@ TMDB_URL_PATTERN = re.compile(
 	re.IGNORECASE,
 )
 PARENTHESIZED_YEAR_PATTERN = re.compile(r"^(.+?)\s+\(([0-9]{4})\)$")
+SLASH_YEAR_PATTERN = re.compile(r"^(.+?)\s*/\s*([0-9]{4})$")
 TRAILING_YEAR_PATTERN = re.compile(r"^(.+?)\s+([0-9]{4})$")
 MINIMUM_MOVIE_YEAR = 1801
 MAXIMUM_MOVIE_YEAR = 2999
@@ -79,6 +80,12 @@ def classify_movie_input(raw_input: str) -> MovieInput:
 		return movie_input
 
 	title_match = PARENTHESIZED_YEAR_PATTERN.fullmatch(text)
+	if title_match is not None:
+		movie_input = _title_with_year(title_match)
+		if movie_input is not None:
+			return movie_input
+
+	title_match = SLASH_YEAR_PATTERN.fullmatch(text)
 	if title_match is not None:
 		movie_input = _title_with_year(title_match)
 		if movie_input is not None:

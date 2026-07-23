@@ -23,6 +23,7 @@ class MovieData:
 	imdb_rating: float
 	imdb_votes: int
 	rt_tomatometer: int
+	rt_audience_score: int | None
 	rt_state: str
 	rt_consensus: str
 	metascore: int
@@ -63,6 +64,11 @@ def validate_movie_data(movie_data: MovieData) -> None:
 		raise ValueError("IMDb votes must be positive")
 	if not 0 <= movie_data.rt_tomatometer <= 100:
 		raise ValueError("RT Tomatometer must be between 0 and 100")
+	if (
+		movie_data.rt_audience_score is not None
+		and not 0 <= movie_data.rt_audience_score <= 100
+	):
+		raise ValueError("RT audience score must be between 0 and 100 when available")
 	expected_rt_state = slide_maker.emoji_marks.rt_state_for_score(movie_data.rt_tomatometer)
 	if movie_data.rt_state != expected_rt_state:
 		raise ValueError(f"RT state must be {expected_rt_state!r} for this Tomatometer")

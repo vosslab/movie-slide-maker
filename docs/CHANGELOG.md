@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-07-23
+
+### Additions and New Features
+
+- Added the optional Rotten Tomatoes Popcornmeter to the provider contract and slide, with popcorn
+  for scores of at least 60, popcorn with a thumbs-down below 60, and `N/A` when no audience score
+  is published.
+- Added tiered Tomatometer marks: a green sick mark below 60, a tomato from 60 through 80, and a
+  tomato with a trophy above 80.
+- Added a yellow IMDb score highlight and compact vote-count formatting such as `435k`, `2.3k`, and
+  `1.2M`.
+
+### Fixes and Maintenance
+
+- Normalized the runtime template and every built presentation to exactly 28 by 17.5 cm, eliminating
+  the 28.002 by 17.502 cm ODP round-trip drift that prompted LibreOffice to scale copied slides.
+- Strengthened converted-page validation to require the exact lecture page dimensions.
+- Launched headless LibreOffice through macOS LaunchServices instead of directly registering its
+  application binary, preventing intermittent AppKit aborts and intrusive crash dialogs.
+- Split critics and Popcornmeter values across readable secondary bullets and refreshed the tracked
+  Her slide screenshot from the current validated output.
+
 ## 2026-07-21
 
 ### Additions and New Features
@@ -73,6 +95,9 @@
   bootstraps and stale milestone diagnostics.
 - Removed the orphaned provider milestone status report after the completed plan was archived; the
   archived plan and live E2E scripts remain the durable provider acceptance record.
+- Accepted slash-delimited release years while preserving numeric and punctuated movie titles.
+- Made the exact IMDb id the cross-provider identity anchor instead of fragile title and release-year
+  label equality; presentation titles and years continue to use TMDB's English-language data.
 
 ### Decisions and Failures
 

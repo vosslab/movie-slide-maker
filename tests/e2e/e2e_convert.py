@@ -54,6 +54,7 @@ def main() -> None:
 			imdb_rating=8.0,
 			imdb_votes=792315,
 			rt_tomatometer=95,
+			rt_audience_score=82,
 			rt_state="fresh",
 			rt_consensus="Sweet, soulful, and smart, Her uses its scenario to impart wisdom.",
 			metascore=91,

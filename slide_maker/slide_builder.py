@@ -8,6 +8,8 @@ import pathlib
 import pptx
 import PIL.Image #pillow
 import pptx.util
+import pptx.oxml
+import pptx.oxml.ns
 import pptx.enum.text
 
 # local repo modules
@@ -22,6 +24,9 @@ FONT_NAME = "OpenDyslexic"
 TITLE_FONT_SIZE = pptx.util.Pt(40.4)
 PRIMARY_FONT_SIZE = pptx.util.Pt(22.0)
 SECONDARY_FONT_SIZE = pptx.util.Pt(19.2)
+PAGE_WIDTH = pptx.util.Cm(28.0)
+PAGE_HEIGHT = pptx.util.Cm(17.5)
+IMDB_SCORE_HIGHLIGHT = "F5C518"
 
 
 class SlideBuildError(RuntimeError):
@@ -57,6 +62,61 @@ def clone_template_shapes(source_slide: object, target_slide: object) -> None:
 
 
 #============================================
+def format_compact_count(count: int) -> str:
+	"""Format a nonnegative count with a compact suffix and at least two significant digits."""
+	if type(count) is not int or count < 0:
+		raise ValueError("Compact count must be a nonnegative integer")
+	units = (
+		(999_500_000, 1_000_000_000, "B"),
+		(999_500, 1_000_000, "M"),
+		(1_000, 1_000, "k"),
+	)
+	for threshold, divisor, suffix in units:
+		if count < threshold:
+			continue
+		scaled = count / divisor
+		if scaled < 10:
+			number = f"{scaled:.1f}"
+		else:
+			number = f"{scaled:.0f}"
+		return f"{number}{suffix}"
+	return str(count)
+
+
+#============================================
+def add_styled_run(
+	paragraph: object,
+	text: str,
+	font_size: pptx.util.Length,
+	bold: bool = False,
+) -> object:
+	"""Add one consistently styled OpenDyslexic run."""
+	run = paragraph.add_run()
+	run.text = text
+	run.font.name = FONT_NAME
+	run.font.size = font_size
+	run.font.bold = bold
+	return run
+
+
+#============================================
+def set_run_highlight(run: object, color: str) -> None:
+	"""Apply one DrawingML text highlight not exposed by python-pptx."""
+	run_properties = run._r.get_or_add_rPr()
+	highlight_tag = pptx.oxml.ns.qn("a:highlight")
+	for child in list(run_properties):
+		if child.tag == highlight_tag:
+			run_properties.remove(child)
+	highlight_xml = (
+		f'<a:highlight {pptx.oxml.ns.nsdecls("a")}>'
+		f'<a:srgbClr val="{color}"/>'
+		"</a:highlight>"
+	)
+	highlight = pptx.oxml.parse_xml(highlight_xml)
+	run_properties.append(highlight)
+
+
+#============================================
 def add_text_paragraph(
 	text_frame: object,
 	text: str,
@@ -70,26 +130,48 @@ def add_text_paragraph(
 	else:
 		paragraph = text_frame.add_paragraph()
 	paragraph.level = level
-	run = paragraph.add_run()
-	run.text = text
-	run.font.name = FONT_NAME
-	run.font.size = font_size
+	add_styled_run(paragraph, text, font_size)
 
 
 #============================================
-def format_rating_marks(movie_data: slide_maker.moviedata.MovieData) -> tuple[str, str]:
-	"""Return the display marks for the validated RT and Metascore bands."""
-	if movie_data.rt_state == "fresh":
-		rt_mark = slide_maker.emoji_marks.GREEN_SQUARE_MARK
+def add_imdb_paragraph(
+	text_frame: object,
+	movie_data: slide_maker.moviedata.MovieData,
+) -> None:
+	"""Add the IMDb line with its score highlighted in brand yellow."""
+	paragraph = text_frame.add_paragraph()
+	paragraph.level = 1
+	add_styled_run(paragraph, "IMDB rating ", SECONDARY_FONT_SIZE)
+	score_run = add_styled_run(
+		paragraph,
+		f"{movie_data.imdb_rating:.1f}",
+		SECONDARY_FONT_SIZE,
+		True,
+	)
+	set_run_highlight(score_run, IMDB_SCORE_HIGHLIGHT)
+	vote_text = format_compact_count(movie_data.imdb_votes)
+	add_styled_run(paragraph, f", {vote_text} votes", SECONDARY_FONT_SIZE)
+
+
+#============================================
+def format_rating_marks(
+	movie_data: slide_maker.moviedata.MovieData,
+) -> tuple[str, str | None, str]:
+	"""Return the requested critic, audience, and Metascore display marks."""
+	rt_mark = slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer)
+	if movie_data.rt_audience_score is None:
+		audience_mark = None
 	else:
-		rt_mark = slide_maker.emoji_marks.RED_SQUARE_MARK
+		audience_mark = slide_maker.emoji_marks.rt_audience_mark_for_score(
+			movie_data.rt_audience_score
+		)
 	metascore_marks = {
 		"high": slide_maker.emoji_marks.GREEN_SQUARE_MARK,
 		"middle": slide_maker.emoji_marks.YELLOW_SQUARE_MARK,
 		"low": slide_maker.emoji_marks.RED_SQUARE_MARK,
 	}
 	metascore_mark = metascore_marks[movie_data.metascore_band]
-	return rt_mark, metascore_mark
+	return rt_mark, audience_mark, metascore_mark
 
 
 #============================================
@@ -111,32 +193,51 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 	"""Fill the named outline anchor with product labels and bullet hierarchy."""
 	outline_shape = shape_by_name(slide, TEMPLATE_OUTLINE_NAME)
 	require(outline_shape.has_text_frame, "Movie outline role has no text frame")
-	rt_mark, metascore_mark = format_rating_marks(movie_data)
-	paragraphs = (
-		(movie_data.plot, 0, PRIMARY_FONT_SIZE),
-		(
-			f"IMDB rating {movie_data.imdb_rating:.1f}, "
-			f"{movie_data.imdb_votes:,} votes",
-			1,
-			SECONDARY_FONT_SIZE,
-		),
-		(
-			f"Critics: RT {rt_mark} {movie_data.rt_tomatometer}% / "
-			f"MS {metascore_mark} {movie_data.metascore}",
-			1,
-			SECONDARY_FONT_SIZE,
-		),
-		(f"Genre: {', '.join(movie_data.genres)}", 0, PRIMARY_FONT_SIZE),
-		(f"Director: {', '.join(movie_data.directors)}", 0, PRIMARY_FONT_SIZE),
-		(f"Run time: {movie_data.runtime_minutes} min", 0, PRIMARY_FONT_SIZE),
-		(f"Review Summary: {movie_data.rt_consensus}", 0, PRIMARY_FONT_SIZE),
+	rt_mark, audience_mark, metascore_mark = format_rating_marks(movie_data)
+	if movie_data.rt_audience_score is None:
+		audience_text = "Audience: N/A"
+	else:
+		audience_text = f"Audience: {audience_mark} {movie_data.rt_audience_score}%"
+	critics_text = (
+		f"Critics: RT {rt_mark} {movie_data.rt_tomatometer}% / "
+		f"MS {metascore_mark} {movie_data.metascore}"
 	)
 	text_frame = outline_shape.text_frame
 	text_frame.clear()
 	text_frame.word_wrap = True
 	text_frame.auto_size = pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-	for index, (text, level, font_size) in enumerate(paragraphs):
-		add_text_paragraph(text_frame, text, level, font_size, index == 0)
+	add_text_paragraph(text_frame, movie_data.plot, 0, PRIMARY_FONT_SIZE, True)
+	add_imdb_paragraph(text_frame, movie_data)
+	add_text_paragraph(text_frame, critics_text, 1, SECONDARY_FONT_SIZE, False)
+	add_text_paragraph(text_frame, audience_text, 1, SECONDARY_FONT_SIZE, False)
+	add_text_paragraph(
+		text_frame,
+		f"Genre: {', '.join(movie_data.genres)}",
+		0,
+		PRIMARY_FONT_SIZE,
+		False,
+	)
+	add_text_paragraph(
+		text_frame,
+		f"Director: {', '.join(movie_data.directors)}",
+		0,
+		PRIMARY_FONT_SIZE,
+		False,
+	)
+	add_text_paragraph(
+		text_frame,
+		f"Run time: {movie_data.runtime_minutes} min",
+		0,
+		PRIMARY_FONT_SIZE,
+		False,
+	)
+	add_text_paragraph(
+		text_frame,
+		f"Review Summary: {movie_data.rt_consensus}",
+		0,
+		PRIMARY_FONT_SIZE,
+		False,
+	)
 
 
 #============================================
@@ -179,6 +280,8 @@ def place_poster(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 def append_movie_slide(presentation: object, movie_data: slide_maker.moviedata.MovieData) -> object:
 	"""Append one visible movie slide using the presentation's template slide."""
 	slide_maker.moviedata.validate_movie_data(movie_data)
+	presentation.slide_width = PAGE_WIDTH
+	presentation.slide_height = PAGE_HEIGHT
 	require(len(presentation.slides) >= 1, "Presentation has no movie template slide")
 	template_slide = presentation.slides[0]
 	shape_by_name(template_slide, TEMPLATE_TITLE_NAME)

@@ -27,6 +27,7 @@ REPO_ROOT = pathlib.Path(file_utils.get_repo_root())
 # local repo modules
 import slide_maker.moviedata
 import slide_maker.emoji_marks
+import slide_maker.libreoffice_runner
 import slide_maker.slide_builder
 import slide_maker.slide_convert
 
@@ -45,6 +46,7 @@ EVIDENCE_DIR = REPO_ROOT / "output_smoke" / "visual_accept"
 EXPECTED_LABELS = (
 	"IMDB rating",
 	"Critics: RT",
+	"Audience:",
 	"Genre:",
 	"Director:",
 	"Run time:",
@@ -114,6 +116,7 @@ def movie_cases(work_dir: pathlib.Path) -> tuple[slide_maker.moviedata.MovieData
 		imdb_rating=8.0,
 		imdb_votes=792315,
 		rt_tomatometer=95,
+		rt_audience_score=82,
 		rt_state="fresh",
 		rt_consensus="Sweet, soulful, and smart, Her uses its scenario to impart wisdom.",
 		metascore=91,
@@ -137,6 +140,7 @@ def movie_cases(work_dir: pathlib.Path) -> tuple[slide_maker.moviedata.MovieData
 		imdb_rating=8.0,
 		imdb_votes=792315,
 		rt_tomatometer=95,
+		rt_audience_score=82,
 		rt_state="fresh",
 		rt_consensus=(
 			"Sweet, soulful, visually thoughtful, and anchored by a warm central performance, Her "
@@ -169,19 +173,31 @@ def source_movie_slide(presentation: object, expected_title: str) -> object:
 #============================================
 def expected_outline_fragments(movie_data: slide_maker.moviedata.MovieData) -> tuple[str, ...]:
 	"""Return stable literal movie fragments required in the outline."""
-	fragments = (
+	fragments = [
 		movie_data.plot,
 		f"{movie_data.imdb_rating:.1f}",
-		f"{movie_data.imdb_votes:,}",
+		slide_maker.slide_builder.format_compact_count(movie_data.imdb_votes),
 		f"{movie_data.rt_tomatometer}%",
 		str(movie_data.metascore),
 		", ".join(movie_data.genres),
 		", ".join(movie_data.directors),
 		f"{movie_data.runtime_minutes} min",
 		movie_data.rt_consensus,
+		slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer),
 		slide_maker.emoji_marks.GREEN_SQUARE_MARK,
-	)
-	return fragments
+	]
+	if movie_data.rt_audience_score is None:
+		fragments.append("Audience: N/A")
+	else:
+		fragments.extend(
+			(
+				f"{movie_data.rt_audience_score}%",
+				slide_maker.emoji_marks.rt_audience_mark_for_score(
+					movie_data.rt_audience_score
+				),
+			)
+		)
+	return tuple(fragments)
 
 
 #============================================
@@ -205,9 +221,10 @@ def validate_source_text(slide: object, movie_data: slide_maker.moviedata.MovieD
 		require(fragment in outline.text, f"Built outline is missing movie text: {fragment}")
 	paragraphs = outline.text_frame.paragraphs
 	levels = [paragraph.level for paragraph in paragraphs]
-	require(levels == [0, 1, 1, 0, 0, 0, 0], "Built outline bullet hierarchy changed")
+	require(levels == [0, 1, 1, 1, 0, 0, 0, 0], "Built outline bullet hierarchy changed")
 	require("IMDB rating" in paragraphs[1].text, "IMDb rating lost its secondary bullet")
 	require("Critics: RT" in paragraphs[2].text, "Critics ratings lost their secondary bullet")
+	require("Audience:" in paragraphs[3].text, "Popcornmeter lost its secondary bullet")
 	for shape in (title, outline):
 		for paragraph in shape.text_frame.paragraphs:
 			for run in paragraph.runs:
@@ -545,20 +562,14 @@ def render_document(
 	"""Render one presentation through PDF and return its accepted PNG path."""
 	render_dir = work_dir / f"{document_path.stem}_{document_path.suffix[1:]}_render"
 	render_dir.mkdir()
-	profile_uri = render_dir.joinpath("libreoffice_profile").resolve().as_uri()
-	run_command(
-		[
-			"soffice",
-			f"-env:UserInstallation={profile_uri}",
-			"--headless",
-			"--convert-to",
-			"pdf",
-			"--outdir",
-			str(render_dir),
-			str(document_path.resolve()),
-		],
-		"LibreOffice PDF render failed",
+	result = slide_maker.libreoffice_runner.convert_document(
+		document_path,
+		"pdf",
+		render_dir,
+		render_dir / "libreoffice_profile",
 	)
+	diagnostic = result.stderr.strip() or result.stdout.strip() or "no command diagnostic"
+	require(result.returncode == 0, f"LibreOffice PDF render failed: {diagnostic}")
 	pdf_path = render_dir / f"{document_path.stem}.pdf"
 	require(pdf_path.is_file(), f"LibreOffice did not render PDF: {pdf_path}")
 	require(pdf_path.stat().st_size > 0, f"LibreOffice rendered an empty PDF: {pdf_path}")
@@ -608,19 +619,16 @@ def convert_control_to_odp(
 	"""Convert one empty-text control to temporary ODP without product validation."""
 	conversion_dir = work_dir / f"{control_pptx_path.stem}_conversion"
 	conversion_dir.mkdir()
-	profile_uri = conversion_dir.joinpath("libreoffice_profile").resolve().as_uri()
-	run_command(
-		[
-			"soffice",
-			f"-env:UserInstallation={profile_uri}",
-			"--headless",
-			"--convert-to",
-			"odp",
-			"--outdir",
-			str(conversion_dir),
-			str(control_pptx_path.resolve()),
-		],
-		"LibreOffice empty-text control conversion failed",
+	result = slide_maker.libreoffice_runner.convert_document(
+		control_pptx_path,
+		"odp",
+		conversion_dir,
+		conversion_dir / "libreoffice_profile",
+	)
+	diagnostic = result.stderr.strip() or result.stdout.strip() or "no command diagnostic"
+	require(
+		result.returncode == 0,
+		f"LibreOffice empty-text control conversion failed: {diagnostic}",
 	)
 	control_odp_path = conversion_dir / f"{control_pptx_path.stem}.odp"
 	require(control_odp_path.is_file(), "LibreOffice did not convert the empty-text control")

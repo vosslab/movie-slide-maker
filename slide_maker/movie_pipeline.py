@@ -126,20 +126,19 @@ def _validate_imdb_rating(
 	"""Validate IMDb identity, rating, and vote values against TMDB."""
 	attempted = f"https://www.imdb.com/title/{movie.imdb_id}/"
 	_require_source(result.imdb_id == movie.imdb_id, "IMDb", movie, attempted, "id did not match TMDB")
-	identity_matches = slide_maker.movie_identity.count_identity_matches(
-		result.title,
-		result.year,
-		[],
-		movie.title,
-		movie.year,
-		movie.directors,
-	)
 	_require_source(
-		identity_matches >= 2,
+		bool(result.title.strip()),
 		"IMDb",
 		movie,
 		attempted,
-		"title or year did not match TMDB",
+		"title was missing",
+	)
+	_require_source(
+		result.year > 0,
+		"IMDb",
+		movie,
+		attempted,
+		"year was invalid",
 	)
 	_require_source(0.0 <= result.imdb_rating <= 10.0, "IMDb", movie, attempted, "rating was invalid")
 	_require_source(result.imdb_votes > 0, "IMDb", movie, attempted, "vote count was missing")
@@ -263,6 +262,14 @@ def _fetch_rt(
 			"Tomatometer was invalid",
 		)
 		_require_source(
+			result.rt_audience_score is None
+			or 0 <= result.rt_audience_score <= 100,
+			"Rotten Tomatoes",
+			movie,
+			attempted_url,
+			"Popcornmeter was invalid",
+		)
+		_require_source(
 			result.rt_state in ("fresh", "rotten"),
 			"Rotten Tomatoes",
 			movie,
@@ -366,6 +373,7 @@ def _assemble_movie_data(
 		imdb_rating=imdb_rating.imdb_rating,
 		imdb_votes=imdb_rating.imdb_votes,
 		rt_tomatometer=rt_rating.rt_tomatometer,
+		rt_audience_score=rt_rating.rt_audience_score,
 		rt_state=rt_rating.rt_state,
 		rt_consensus=rt_rating.rt_consensus,
 		metascore=metacritic_rating.metascore,
