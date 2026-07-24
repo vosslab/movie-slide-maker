@@ -8,6 +8,9 @@ import slide_maker.movie_input
 import slide_maker.tmdb_client
 
 
+OVERVIEW_WORD_LIMIT = 12
+
+
 class MovieResolutionError(RuntimeError):
 	"""Report that interactive movie resolution could not select a movie."""
 
@@ -29,7 +32,16 @@ def _candidate_label(
 ) -> str:
 	"""Build one human-readable numbered TMDB candidate label."""
 	year = str(candidate.year) if candidate.year is not None else "year unknown"
-	label = f"{index}. {candidate.title} ({year}) [TMDB {candidate.tmdb_id}]"
+	overview_words = candidate.overview.split()
+	overview = " ".join(overview_words[:OVERVIEW_WORD_LIMIT])
+	if len(overview_words) > OVERVIEW_WORD_LIMIT:
+		overview += "..."
+	if not overview:
+		overview = "No summary available."
+	label = (
+		f"{index}. {candidate.title} ({year}) [TMDB {candidate.tmdb_id}] "
+		f"- {overview}"
+	)
 	return label
 
 

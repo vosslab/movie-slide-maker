@@ -176,6 +176,22 @@ def source_slug_candidates(title: str, year: int, separator: str) -> tuple[str, 
 
 
 #============================================
+def _source_slug_candidates_for_titles(
+	titles: list[str],
+	year: int,
+	separator: str,
+) -> tuple[str, ...]:
+	"""Return unique provider slugs for multiple trusted movie titles."""
+	candidates = []
+	for title in titles:
+		for candidate in source_slug_candidates(title, year, separator):
+			if candidate not in candidates:
+				candidates.append(candidate)
+	result = tuple(candidates)
+	return result
+
+
+#============================================
 def _rt_slug_candidates(title: str, year: int) -> tuple[str, ...]:
 	"""Return bounded RT candidates including its legacy joined-hyphen style."""
 	standard_candidates = source_slug_candidates(title, year, "_")
@@ -292,12 +308,14 @@ def _fetch_rt(
 #============================================
 def _fetch_metacritic(
 	movie: slide_maker.tmdb_client.TmdbMovie,
+	imdb_title: str,
 	providers: ProviderBundle,
 ) -> slide_maker.metacritic_scraper.MetacriticRating:
-	"""Resolve and validate one bounded Metacritic candidate sequence."""
+	"""Resolve Metacritic from its IMDb-aligned title and the TMDB title."""
 	attempted_urls = []
 	last_error: slide_maker.metacritic_scraper.MetacriticSourceError | None = None
-	for slug in source_slug_candidates(movie.title, movie.year, "-"):
+	titles = [imdb_title, movie.title]
+	for slug in _source_slug_candidates_for_titles(titles, movie.year, "-"):
 		attempted_url = f"{slide_maker.metacritic_scraper.METACRITIC_MOVIE_ROOT}/{slug}/"
 		attempted_urls.append(attempted_url)
 		try:
@@ -423,7 +441,7 @@ def resolve_movie_data(
 	imdb_rating = providers.fetch_imdb_rating(tmdb_movie.imdb_id)
 	_validate_imdb_rating(imdb_rating, tmdb_movie)
 	rt_rating = _fetch_rt(tmdb_movie, providers)
-	metacritic_rating = _fetch_metacritic(tmdb_movie, providers)
+	metacritic_rating = _fetch_metacritic(tmdb_movie, imdb_rating.title, providers)
 	movie_data = _assemble_movie_data(
 		tmdb_movie,
 		imdb_rating,

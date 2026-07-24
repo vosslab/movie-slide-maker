@@ -14,6 +14,10 @@
 
 ### Fixes and Maintenance
 
+- Added compact TMDB overview excerpts to ambiguous title menus so same-title, same-year
+  candidates can be distinguished before selection.
+- Resolved Metacritic pages from the validated IMDb title as well as the TMDB title, fixing movies
+  such as Dune (2021) whose Metacritic canonical title and slug include `Part One`.
 - Normalized the runtime template and every built presentation to exactly 28 by 17.5 cm, eliminating
   the 28.002 by 17.502 cm ODP round-trip drift that prompted LibreOffice to scale copied slides.
 - Strengthened converted-page validation to require the exact lecture page dimensions.

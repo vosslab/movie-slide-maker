@@ -93,12 +93,29 @@ def search_movies(
 	if title == "Missing Movie":
 		return []
 	if title == "Only Movie":
-		results = [slide_maker.tmdb_client.TmdbSearchResult(1001, "Only Movie", 2001)]
+		results = [
+			slide_maker.tmdb_client.TmdbSearchResult(
+				1001,
+				"Only Movie",
+				2001,
+				"One movie returned without a selection menu.",
+			)
+		]
 		return results
 	if title == "The Movie":
 		results = [
-			slide_maker.tmdb_client.TmdbSearchResult(2001, "The Movie", 1999),
-			slide_maker.tmdb_client.TmdbSearchResult(2002, "The Movie", 2024),
+			slide_maker.tmdb_client.TmdbSearchResult(
+				2001,
+				"The Movie",
+				1999,
+				"The first version follows an older cast through a remote town.",
+			),
+			slide_maker.tmdb_client.TmdbSearchResult(
+				2002,
+				"The Movie",
+				2024,
+				"The second version follows a new cast through a crowded city.",
+			),
 		]
 		return results
 	raise RuntimeError(f"Unexpected title search: {title!r} ({year!r})")
@@ -195,6 +212,11 @@ def validate_title_routes(
 		any(line.startswith("1. ") for line in written_lines)
 		and any(line.startswith("2. ") for line in written_lines),
 		"Resolver did not present numbered movie choices",
+	)
+	require(
+		any("first version" in line for line in written_lines)
+		and any("second version" in line for line in written_lines),
+		"Resolver menu omitted the distinguishing movie summaries",
 	)
 	retry_count = sum(line.startswith("Enter a number") for line in written_lines)
 	require(retry_count == 2, "Resolver did not retry both invalid menu choices")

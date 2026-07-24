@@ -27,6 +27,7 @@ class TmdbSearchResult:
 	tmdb_id: int
 	title: str
 	year: int | None
+	overview: str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -151,6 +152,7 @@ def search_movies(title: str, year: int | None = None) -> list[TmdbSearchResult]
 		_require(isinstance(item, dict), identity, attempted, "a search result was not an object")
 		tmdb_id = _required_value(item, "id", identity, attempted)
 		result_title = _required_value(item, "title", identity, attempted)
+		result_overview = _required_value(item, "overview", identity, attempted)
 		_require(type(tmdb_id) is int and tmdb_id > 0, identity, attempted, "id was invalid")
 		_require(
 			isinstance(result_title, str) and bool(result_title.strip()),
@@ -158,9 +160,15 @@ def search_movies(title: str, year: int | None = None) -> list[TmdbSearchResult]
 			attempted,
 			"title was missing",
 		)
+		_require(
+			isinstance(result_overview, str),
+			identity,
+			attempted,
+			"overview was invalid",
+		)
 		release_date = _required_value(item, "release_date", identity, attempted)
 		result_year = _release_year(release_date, identity, attempted, False)
-		result = TmdbSearchResult(tmdb_id, result_title, result_year)
+		result = TmdbSearchResult(tmdb_id, result_title, result_year, result_overview)
 		results.append(result)
 	return results
 
