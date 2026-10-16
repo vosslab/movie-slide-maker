@@ -35,7 +35,6 @@ REQUIRED_FIELDS = (
 	"Genre:",
 	"Director:",
 	"Run time:",
-	"Review Summary:",
 )
 GEOMETRY_TOLERANCE_CM = 0.1
 EXPECTED_PAGE_WIDTH_CM = 28.0

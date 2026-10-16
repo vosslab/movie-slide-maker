@@ -108,7 +108,7 @@ class DeterministicResolverIO:
 		self.write_line_target(prompt.rstrip())
 		label_pattern = re.compile(
 			rf"^([0-9]+)\. {re.escape(self.request.title)} "
-			rf"\({self.request.year}\) \[TMDB [0-9]+\]$",
+			rf"\({self.request.year}\) \[TMDB [0-9]+\](?: - .*)?$",
 			re.IGNORECASE,
 		)
 		for message in self.messages:

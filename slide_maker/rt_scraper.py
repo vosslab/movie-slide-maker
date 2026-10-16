@@ -26,7 +26,7 @@ class RtRating:
 
 	imdb_id: str
 	title: str
-	year: int
+	year: int | None
 	directors: list[str]
 	rt_tomatometer: int
 	rt_audience_score: int | None
@@ -200,7 +200,7 @@ def fetch_rt_rating(
 
 	Raises:
 		ValueError: An input identity is malformed or incomplete.
-		RtSourceError: The response fails identity, score, or consensus requirements.
+		RtSourceError: The response fails identity or score requirements.
 	"""
 	normalized_imdb_id = imdb_id.strip().lower()
 	if IMDB_ID_PATTERN.fullmatch(normalized_imdb_id) is None:
@@ -220,7 +220,7 @@ def fetch_rt_rating(
 	page.feed(response.text)
 	vanity = _page_json(page, "data-json", "vanity", identity, attempted)
 	scorecard = _page_json(page, "id", "media-scorecard-json", identity, attempted)
-	watch_data = _page_json(page, "id", "where-to-watch-json", identity, attempted)
+	metadata = _page_json(page, "type", "application/ld+json", identity, attempted)
 
 	title = _required_value(vanity, "title", "vanity.title", identity, attempted)
 	lifecycle = _required_mapping(
@@ -230,35 +230,37 @@ def fetch_rt_rating(
 		identity,
 		attempted,
 	)
-	date_text = _required_value(
-		lifecycle,
-		"date",
-		"vanity.lifecycleWindow.date",
-		identity,
-		attempted,
-	)
-	director = _required_value(
-		watch_data,
+	date_text = lifecycle.get("date")
+	director_records = _required_value(
+		metadata,
 		"director",
-		"where-to-watch-json.director",
+		"Movie.director",
 		identity,
 		attempted,
 	)
 	_require(isinstance(title, str) and bool(title.strip()), identity, attempted, "title was missing")
 	_require(
-		isinstance(date_text, str) and bool(re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_text)),
+		date_text is None or (
+			isinstance(date_text, str)
+			and bool(re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_text))
+		),
 		identity,
 		attempted,
-		"release date was missing or invalid",
+		"release date was invalid",
 	)
 	_require(
-		isinstance(director, str) and bool(director.strip()),
+		isinstance(director_records, list) and bool(director_records),
 		identity,
 		attempted,
 		"director was missing",
 	)
-	year = int(date_text[:4])
-	directors = [director]
+	directors = []
+	for record in director_records:
+		_require(isinstance(record, dict), identity, attempted, "director was invalid")
+		name = _required_value(record, "name", "Movie.director.name", identity, attempted)
+		_require(isinstance(name, str) and bool(name.strip()), identity, attempted, "director was invalid")
+		directors.append(name)
+	year = int(date_text[:4]) if date_text is not None else None
 	matches = slide_maker.movie_identity.count_identity_matches(
 		title,
 		year,
@@ -292,12 +294,6 @@ def fetch_rt_rating(
 	tomatometer = int(critics_score)
 	_require(0 <= tomatometer <= 100, identity, attempted, "Tomatometer was outside 0-100")
 	audience_score = _optional_audience_score(scorecard, identity, attempted)
-	_require(
-		page.consensus is not None and bool(page.consensus.strip()),
-		identity,
-		attempted,
-		"critics consensus was missing",
-	)
 	result = RtRating(
 		imdb_id=normalized_imdb_id,
 		title=title,
@@ -306,7 +302,7 @@ def fetch_rt_rating(
 		rt_tomatometer=tomatometer,
 		rt_audience_score=audience_score,
 		rt_state=slide_maker.emoji_marks.rt_state_for_score(tomatometer),
-		rt_consensus=page.consensus,
+		rt_consensus=page.consensus if page.consensus is not None else "",
 		canonical_url=attempted,
 	)
 	return result

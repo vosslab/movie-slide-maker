@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-10-15
+
+### Fixes and Maintenance
+
+- Fixed exact-title selection in review batches to accept resolver menu lines with plot
+  excerpts, allowing ambiguous searches such as Vesper (2022) to resolve automatically.
+- Made the Rotten Tomatoes critics consensus optional across fetching, validation, and
+  rendering. Slides omit the Review Summary bullet when no consensus is published.
+- Read Rotten Tomatoes directors from Movie JSON-LD instead of optional streaming metadata.
+  Missing release dates remain unknown; title and director must then both match the movie.
+- Allowed explicitly assembled movie data to omit an unavailable Metascore and its display.
+  Used this for the user-approved White Plastic Sky slide; live automatic fetching still reports
+  Metacritic failures instead of silently suppressing them.
+
+### Developer Tests and Notes
+
+- Verified batch menu selection with and without overview excerpts. Targeted lint, typing,
+  and Markdown-link checks passed (132 tests).
+- Ran LibreOffice conversion outside the sandbox because sandboxed LaunchServices could not
+  find the installed application.
+- Generated all six requested movies in `output_movies/2026-10-15/recent_movies.odp`, verified
+  the approved omissions in the ODP, and visually checked all six rendered pages.
+
 ## 2026-07-23
 
 ### Additions and New Features

@@ -89,7 +89,12 @@ All four provider results and the poster must pass identity and mandatory-field 
 the builder writes a product. Provider and contract failures name the source and movie identity and
 create no new PPTX or ODP. If LibreOffice conversion or ODP validation fails, the command preserves
 the scratch PPTX for diagnosis but does not publish a validated ODP. A Rotten Tomatoes critics
-consensus and a Metacritic score are required by design; the Popcornmeter is optional.
+consensus is optional: its Review Summary bullet is omitted when unavailable. A Metacritic score
+is required; the Popcornmeter is optional.
+
+For explicitly approved omissions, programmatic callers can supply `None` for both `metascore`
+and `metascore_band`; the builder then omits the Metacritic portion of the critics line. The normal
+live pipeline continues to report Metacritic source failures.
 
 On macOS, the converter launches LibreOffice through LaunchServices in headless mode. This avoids
 the intermittent AppKit registration abort and visible crash dialog caused by starting the

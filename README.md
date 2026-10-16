@@ -25,7 +25,8 @@ committed teaching template while each provider remains responsible for its own 
 - Preserve the template's labels, bullet hierarchy, OpenDyslexic typography, and poster region.
 - Preserve the lecture deck's exact 28 by 17.5 cm page size and validate the converted ODP by
   semantic role and geometry before deleting scratch files.
-- Stop before output when required identity, critics consensus, Metascore, or poster data is absent.
+- Stop before output when required identity, ratings, Metascore, or poster data is absent.
+- Omit the Review Summary bullet when no Rotten Tomatoes critics consensus is published.
 
 The resulting slide is organized around a centered `Title (Year)` heading, a teaching outline with
 plot and rating context, and an aspect-preserving poster. The permanent runtime design authority is
@@ -78,7 +79,7 @@ The finished workflow uses current data gathered during each run:
 | --- | --- |
 | TMDB | Title, year, plot, genres, runtime, director, ids, and poster |
 | IMDb | Rating and vote count |
-| Rotten Tomatoes | Tomatometer, optional Popcornmeter, and critics consensus |
+| Rotten Tomatoes | Tomatometer, Popcornmeter, and critics consensus |
 | Metacritic | Metascore and display band |
 
 TMDB access requires a v4 read token. Copy `tmdb_key_sample.yml` to the ignored `tmdb_key.yml` and
@@ -88,10 +89,11 @@ bounded retry for HTTP 403 or 429.
 
 ## Project status and limits
 
+- Not all movies have all of the required metadata, so the script adapts to make a slide with what
+  it has.
 - The repository currently targets macOS, Python 3.12, LibreOffice Still, and OpenDyslexic.
 - Live provider markup and values can change. Direct E2E scripts validate identity, required fields,
   and plausible ranges instead of freezing current ratings.
-- Movies without a current Rotten Tomatoes critics consensus or Metascore are rejected by design.
 - `SLIDE_ARTIFACTS/` is ignored local material for planning and comparison. It is not distributed or
   required at runtime; the extracted template is committed instead.
 

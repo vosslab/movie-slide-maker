@@ -24,7 +24,7 @@ def normalize_identity_text(value: str) -> str:
 #============================================
 def count_identity_matches(
 	actual_title: str,
-	actual_year: int,
+	actual_year: int | None,
 	actual_directors: list[str],
 	expected_title: str,
 	expected_year: int,

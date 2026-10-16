@@ -156,7 +156,7 @@ def add_imdb_paragraph(
 #============================================
 def format_rating_marks(
 	movie_data: slide_maker.moviedata.MovieData,
-) -> tuple[str, str | None, str]:
+) -> tuple[str, str | None, str | None]:
 	"""Return the requested critic, audience, and Metascore display marks."""
 	rt_mark = slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer)
 	if movie_data.rt_audience_score is None:
@@ -170,7 +170,9 @@ def format_rating_marks(
 		"middle": slide_maker.emoji_marks.YELLOW_SQUARE_MARK,
 		"low": slide_maker.emoji_marks.RED_SQUARE_MARK,
 	}
-	metascore_mark = metascore_marks[movie_data.metascore_band]
+	metascore_mark = None
+	if movie_data.metascore is not None:
+		metascore_mark = metascore_marks[movie_data.metascore_band]
 	return rt_mark, audience_mark, metascore_mark
 
 
@@ -198,10 +200,9 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 		audience_text = "Audience: N/A"
 	else:
 		audience_text = f"Audience: {audience_mark} {movie_data.rt_audience_score}%"
-	critics_text = (
-		f"Critics: RT {rt_mark} {movie_data.rt_tomatometer}% / "
-		f"MS {metascore_mark} {movie_data.metascore}"
-	)
+	critics_text = f"Critics: RT {rt_mark} {movie_data.rt_tomatometer}%"
+	if movie_data.metascore is not None:
+		critics_text += f" / MS {metascore_mark} {movie_data.metascore}"
 	text_frame = outline_shape.text_frame
 	text_frame.clear()
 	text_frame.word_wrap = True
@@ -231,13 +232,14 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 		PRIMARY_FONT_SIZE,
 		False,
 	)
-	add_text_paragraph(
-		text_frame,
-		f"Review Summary: {movie_data.rt_consensus}",
-		0,
-		PRIMARY_FONT_SIZE,
-		False,
-	)
+	if movie_data.rt_consensus.strip():
+		add_text_paragraph(
+			text_frame,
+			f"Review Summary: {movie_data.rt_consensus}",
+			0,
+			PRIMARY_FONT_SIZE,
+			False,
+		)
 
 
 #============================================

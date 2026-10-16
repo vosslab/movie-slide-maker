@@ -292,13 +292,6 @@ def _fetch_rt(
 			attempted_url,
 			"freshness state was invalid",
 		)
-		_require_source(
-			bool(result.rt_consensus.strip()),
-			"Rotten Tomatoes",
-			movie,
-			attempted_url,
-			"critics consensus was missing",
-		)
 		return result
 	attempted = ", ".join(attempted_urls)
 	problem = f"bounded candidates failed; last source diagnostic: {last_error}"
@@ -376,7 +369,7 @@ def _assemble_movie_data(
 	tmdb_movie: slide_maker.tmdb_client.TmdbMovie,
 	imdb_rating: slide_maker.imdb_ratings.ImdbRating,
 	rt_rating: slide_maker.rt_scraper.RtRating,
-	metacritic_rating: slide_maker.metacritic_scraper.MetacriticRating,
+	metacritic_rating: slide_maker.metacritic_scraper.MetacriticRating | None,
 ) -> slide_maker.moviedata.MovieData:
 	"""Assemble and validate the provider-to-builder contract."""
 	movie_data = slide_maker.moviedata.MovieData(
@@ -394,8 +387,8 @@ def _assemble_movie_data(
 		rt_audience_score=rt_rating.rt_audience_score,
 		rt_state=rt_rating.rt_state,
 		rt_consensus=rt_rating.rt_consensus,
-		metascore=metacritic_rating.metascore,
-		metascore_band=metacritic_rating.metascore_band,
+		metascore=metacritic_rating.metascore if metacritic_rating is not None else None,
+		metascore_band=metacritic_rating.metascore_band if metacritic_rating is not None else None,
 		poster_path=tmdb_movie.poster_path,
 	)
 	slide_maker.moviedata.validate_movie_data(movie_data)

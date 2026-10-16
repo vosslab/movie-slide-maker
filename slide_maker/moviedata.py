@@ -26,8 +26,8 @@ class MovieData:
 	rt_audience_score: int | None
 	rt_state: str
 	rt_consensus: str
-	metascore: int
-	metascore_band: str
+	metascore: int | None
+	metascore_band: str | None
 	poster_path: str
 
 
@@ -72,11 +72,11 @@ def validate_movie_data(movie_data: MovieData) -> None:
 	expected_rt_state = slide_maker.emoji_marks.rt_state_for_score(movie_data.rt_tomatometer)
 	if movie_data.rt_state != expected_rt_state:
 		raise ValueError(f"RT state must be {expected_rt_state!r} for this Tomatometer")
-	if not movie_data.rt_consensus.strip():
-		raise ValueError("RT critics consensus is required")
-	if not 0 <= movie_data.metascore <= 100:
+	if movie_data.metascore is not None and not 0 <= movie_data.metascore <= 100:
 		raise ValueError("Metascore must be between 0 and 100")
-	expected_metascore_band = slide_maker.emoji_marks.metascore_band_for_score(movie_data.metascore)
+	expected_metascore_band = None
+	if movie_data.metascore is not None:
+		expected_metascore_band = slide_maker.emoji_marks.metascore_band_for_score(movie_data.metascore)
 	if movie_data.metascore_band != expected_metascore_band:
 		raise ValueError(
 			f"Metascore band must be {expected_metascore_band!r} for this Metascore"
