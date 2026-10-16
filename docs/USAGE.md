@@ -28,9 +28,10 @@ deck's exact 28 by 17.5 cm page size, so copying a slide into that deck does not
 
 The ratings block highlights the IMDb score in yellow and abbreviates large vote counts, such as
 `435k` or `1.2M`. Rotten Tomatoes critics use a rotten mark below 60, a tomato from 60 through 80,
-and a tomato with a trophy above 80. Available ratings share compact rows, with RT critics,
-RT audience, and Metacritic labeled separately. Row breaks account for plot, review, metadata,
-and available text space; each rating stays together. Missing ratings and reviews are omitted.
+and a tomato with a trophy above 80. Ratings use separate rows when the plot, review, and
+metadata leave enough space. Crowded slides combine ratings, pairing RT critics and RT audience
+first; each rating stays together and keeps its provider label. Missing ratings and reviews
+are omitted.
 The slide displays one `Original language:` value when known and non-English. This is the movie's
 original language, not a list of spoken languages or a claim about subtitles in a particular viewing copy.
 Text uses Atkinson Hyperlegible Next with a bold title. Generated movie slides require a poster.
@@ -61,7 +62,7 @@ With no arguments, the module resolves this exact built-in list in order:
 1. `Her (2013)`
 2. `Cooties (2014)`
 3. `It (2017)`
-4. `Sinners (2025)`
+4. `Parasite (2019)`
 5. `A Ghost Waits (2020)`
 
 Each movie becomes a page using its available information. Source omissions are reported in the

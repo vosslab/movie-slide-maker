@@ -107,16 +107,18 @@ image encoder with `brew install webp`, then convert the selected pages with `cw
 source source_me.sh && python3 -m slide_maker.review_deck < /dev/null
 cp output_smoke/review_deck_pages/slide_01.png /tmp/movie_slide_her.png
 cp output_smoke/review_deck_pages/slide_02.png /tmp/movie_slide_cooties.png
-cp output_smoke/review_deck_pages/slide_04.png /tmp/movie_slide_sinners.png
+cp output_smoke/review_deck_pages/slide_04.png /tmp/movie_slide_parasite.png
 cp output_smoke/review_deck_pages/slide_05.png /tmp/movie_slide_a_ghost_waits.png
-for name in her cooties sinners a_ghost_waits; do
+for name in her cooties parasite a_ghost_waits; do
   cwebp -q 90 "/tmp/movie_slide_${name}.png" -o "/tmp/movie_slide_${name}.webp" &&
     cp "/tmp/movie_slide_${name}.webp" docs/screenshots/
 done
 ```
 
-Before copying, confirm the accepted page order is Her, Cooties, It, Sinners, A Ghost Waits.
+Before copying, confirm the accepted page order is Her, Cooties, It, Parasite, A Ghost Waits.
 Inspect the four selected images for clipping and verify the README captions match provider coverage.
+Check that A Ghost Waits keeps its ratings on separate rows, crowded slides pair the two RT
+ratings before combining other scores, and Parasite displays `Original language: Korean`.
 The README uses a 2 by 2 HTML table with 400-pixel previews linked to the full-size WebP images.
 Keep WebP images within 1920 pixels on the longer edge and about 1 MB each. The existing renderer
 produces 1654 by 1034 pixel images. Update the capture date in [README.md](../README.md)

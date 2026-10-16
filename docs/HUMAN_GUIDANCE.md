@@ -6,8 +6,10 @@
   field must not discard other information or prevent a slide.
 - Require a poster for generated movie slides. Try alternate TMDB posters when the primary image
   is missing or fails; stop and report the failure if no usable poster can be retrieved.
-- Arrange available ratings compactly with clear provider and critic/audience labels. Choose
-  line breaks using the whole slide's available space, and keep each rating item together.
+- Prefer one rating per row when the whole slide has room at a readable text size. Compact
+  ratings only when the plot, review summary, and other details make space tight. Pair RT
+  critics (Tomatometer) and RT audience (Popcornmeter) before combining other ratings.
+  Keep clear provider labels and keep each rating item together.
   Use the smallest coherent implementation; add complexity only for demonstrated needs.
 - Ask for clarification when the intended movie is ambiguous. Omit information belonging to a
   different movie and report source problems in the console.

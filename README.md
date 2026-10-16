@@ -10,7 +10,8 @@ The current setup requires a Mac and some Terminal steps, described below.
 ## Screenshots
 
 Click any preview to see the full-size slide. These live examples from 2026-10-16 show different
-amounts of plot, ratings, and review text; A Ghost Waits has no Metascore or review summary.
+amounts of plot, ratings, and review text. Parasite shows the Korean original-language label;
+A Ghost Waits has no Metascore or review summary.
 Posters come from TMDB. Ratings and provider coverage can change.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
@@ -27,8 +28,8 @@ Posters come from TMDB. Ratings and provider coverage can change.
   </tr>
   <tr>
     <td width="50%">
-      <a href="docs/screenshots/movie_slide_sinners.webp"><img src="docs/screenshots/movie_slide_sinners.webp" width="400" alt="Sinners slide with poster, compact ratings, and movie details"></a><br>
-      Sinners (2025)
+      <a href="docs/screenshots/movie_slide_parasite.webp"><img src="docs/screenshots/movie_slide_parasite.webp" width="400" alt="Parasite slide with poster, ratings, and Korean original-language label"></a><br>
+      Parasite (2019)
     </td>
     <td width="50%">
       <a href="docs/screenshots/movie_slide_a_ghost_waits.webp"><img src="docs/screenshots/movie_slide_a_ghost_waits.webp" width="400" alt="A Ghost Waits slide with poster and ratings, omitting missing Metascore and summary"></a><br>
@@ -50,7 +51,8 @@ recommendation. The same layout works with a full set of ratings or just the det
 - Leave out unavailable details so the slide stays useful when a source has gaps.
 - Edit the finished slide in LibreOffice Impress and copy it into your presentation.
 
-Each slide has a bold, centered title, a movie summary with compact ratings, and a poster.
+Each slide has a bold, centered title, a movie summary with ratings, and a poster.
+Ratings use separate rows when space allows and share rows on crowded slides.
 Text uses Atkinson Hyperlegible Next on a 28 by 17.5 cm slide. The layout comes from
 [`template/movie_slide_template.pptx`](template/movie_slide_template.pptx).
 
@@ -82,7 +84,7 @@ same live provider and presentation path:
 source source_me.sh && python3 -m slide_maker.review_deck < /dev/null
 ```
 
-The default order is `Her (2013)`, `Cooties (2014)`, `It (2017)`, `Sinners (2025)`, and
+The default order is `Her (2013)`, `Cooties (2014)`, `It (2017)`, `Parasite (2019)`, and
 `A Ghost Waits (2020)`. Missing provider data reduces the content of a slide without excluding the
 movie. The products are `output_smoke/review_deck.odp` and retained page PNGs under
 `output_smoke/review_deck_pages/`.

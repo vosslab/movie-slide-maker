@@ -277,6 +277,8 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 	rows = []
 	if items:
 		metrics = slide_maker.rating_layout.TextMetrics(FONT_NAME)
+		rt_indices = [index for index, (text, unused_score) in enumerate(items) if text.startswith("RT ")]
+		rt_pair = (rt_indices[0], rt_indices[1]) if len(rt_indices) == 2 else None
 		body_texts = ([movie_data.plot] if movie_data.plot else []) + details
 		width = outline_shape.width - text_frame.margin_left - text_frame.margin_right
 		height = outline_shape.height - text_frame.margin_top - text_frame.margin_bottom
@@ -288,6 +290,7 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 			(width - int(body_properties.get("marL", "0"))) / 12700,
 			(width - int(rating_properties.get("marL", "0"))) / 12700,
 			height / 12700, PRIMARY_FONT_SIZE.pt, SECONDARY_FONT_SIZE.pt,
+			paired=rt_pair,
 		)
 	text_frame.clear()
 	text_frame.word_wrap = True

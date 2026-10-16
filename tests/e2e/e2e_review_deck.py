@@ -29,7 +29,7 @@ EXPECTED_REQUEST_IDENTITIES = (
 	"Her (2013)",
 	"Cooties (2014)",
 	"It (2017)",
-	"Sinners (2025)",
+	"Parasite (2019)",
 	"A Ghost Waits (2020)",
 )
 EXPECTED_OUTPUT_PATH = REPO_ROOT / "output_smoke" / "review_deck.odp"

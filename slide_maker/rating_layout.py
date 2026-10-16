@@ -8,6 +8,10 @@ import PIL.ImageFont #pillow
 import pptx.text.fonts
 
 
+# Allow modest shrinking before sacrificing the preferred one-rating-per-row layout.
+PREFERRED_MIN_SCALE = 0.85
+
+
 #============================================
 class TextMetrics:
 	"""Measure the installed movie font in points, reserving room for emoji."""
@@ -38,12 +42,19 @@ class TextMetrics:
 
 
 #============================================
-def pack_rows(widths: list[float], separator: float, width: float) -> list[list[int]]:
-	"""Wrap only between complete items, preserving their reading order."""
+def pack_rows(
+	widths: list[float], separator: float, width: float,
+	paired: tuple[int, int] | None = None,
+) -> list[list[int]]:
+	"""Pack complete items, keeping the preferred pair together before other merges."""
+	groups = [[index] for index in range(len(widths)) if paired is None or index not in paired]
+	if paired is not None:
+		groups.append(list(paired))
 	rows = []
 	row = []
 	used = 0.0
-	for index, item_width in enumerate(widths):
+	for group in groups:
+		item_width = sum(widths[index] for index in group) + separator * (len(group) - 1)
 		addition = item_width + (separator if row else 0.0)
 		if row and used + addition > width:
 			rows.append(row)
@@ -51,7 +62,7 @@ def pack_rows(widths: list[float], separator: float, width: float) -> list[list[
 			used = 0.0
 		if row:
 			used += separator
-		row.append(index)
+		row.extend(group)
 		used += item_width
 	if row:
 		rows.append(row)
@@ -89,8 +100,9 @@ def choose_rows(
 	height: float,
 	body_size: float,
 	rating_size: float,
+	paired: tuple[int, int] | None = None,
 ) -> tuple[list[list[int]], float]:
-	"""Choose compact rows at the largest estimated whole-outline text scale.
+	"""Prefer separate ratings; compact only when the whole outline is crowded.
 
 	All dimensions are points at the normal font sizes. Body text, including plot,
 	review and metadata, competes with ratings for the same height. Width reserves
@@ -98,24 +110,40 @@ def choose_rows(
 	"""
 	if min(body_width, rating_width, height) <= 0:
 		raise ValueError("The slide outline must have positive available dimensions")
-	lower = 0.0
-	upper = 1.0
-	best_rows = [[index] for index in range(len(widths))]
-	# Test full size first, then bisect the fit boundary rather than choosing by movie name.
-	for attempt in range(13):
-		scale = 1.0 if attempt == 0 else (lower + upper) / 2
-		available_width = rating_width * 0.95 / scale
-		rows = pack_rows(widths, separator, available_width)
-		lines = body_line_count(paragraphs, space, body_width * 0.95 / scale)
-		body_height = lines * body_size * 1.1 + len(paragraphs) * 5.75
-		rating_height = len(rows) * (rating_size * 1.1 + 2.89)
-		fits = (body_height + rating_height) * scale <= height
-		fits = fits and all(width <= available_width for width in widths)
-		if fits:
-			lower = scale
-			best_rows = rows
-			if scale == 1.0:
-				break
-		else:
-			upper = scale
+	separate_rows = [[index] for index in range(len(widths))]
+	paired_rows = [
+		list(paired) if paired is not None and index == paired[0] else [index]
+		for index in range(len(widths)) if paired is None or index != paired[1]
+	]
+	for layout in ("separate", "paired", "compact"):
+		if layout == "paired" and paired is None:
+			continue
+		lower = 0.0
+		upper = 1.0
+		best_rows = separate_rows
+		# Test full size first, then bisect the fit boundary using all outline content.
+		for attempt in range(13):
+			scale = 1.0 if attempt == 0 else (lower + upper) / 2
+			available_width = rating_width * 0.95 / scale
+			if layout == "compact":
+				rows = pack_rows(widths, separator, available_width, paired)
+			else:
+				rows = separate_rows if layout == "separate" else paired_rows
+			lines = body_line_count(paragraphs, space, body_width * 0.95 / scale)
+			body_height = lines * body_size * 1.1 + len(paragraphs) * 5.75
+			rating_height = len(rows) * (rating_size * 1.1 + 2.89)
+			fits = (body_height + rating_height) * scale <= height
+			fits = fits and all(
+				sum(widths[index] for index in row) + separator * (len(row) - 1) <= available_width
+				for row in rows
+			)
+			if fits:
+				lower = scale
+				best_rows = rows
+				if scale == 1.0:
+					break
+			else:
+				upper = scale
+		if lower >= PREFERRED_MIN_SCALE:
+			return best_rows, lower
 	return best_rows, lower

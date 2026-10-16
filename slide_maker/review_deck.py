@@ -74,7 +74,7 @@ DEFAULT_REQUESTS = (
 	ReviewMovieRequest("Her", 2013),
 	ReviewMovieRequest("Cooties", 2014),
 	ReviewMovieRequest("It", 2017),
-	ReviewMovieRequest("Sinners", 2025),
+	ReviewMovieRequest("Parasite", 2019),
 	ReviewMovieRequest("A Ghost Waits", 2020),
 )
 DEFAULT_OUTPUT_PATH = pathlib.Path("output_smoke/review_deck.odp")

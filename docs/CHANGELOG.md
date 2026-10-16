@@ -4,6 +4,9 @@
 
 ### Behavior or Interface Changes
 
+- Prefer separate rating rows when the whole outline fits with at most 15% font shrinking;
+  compact crowded slides with RT critics and audience paired before combining other ratings.
+  Replace Sinners with Parasite in the example deck and README to demonstrate non-English metadata.
 - Convert the four README screenshots to WebP at quality 90 and update their links and
   reproducible conversion instructions; retain the compact grid and full image dimensions.
 - Pack independent rating items into compact rows using measured text width and the whole
@@ -32,6 +35,11 @@
 
 ### Developer Tests and Notes
 
+- Rebuilt the five live examples with the repository review-deck script and inspected all four
+  refreshed WebP previews. Her uses two rating rows with RT critics and audience together;
+  Cooties, Parasite, and A Ghost Waits keep separate ratings. Parasite shows Korean. Normal
+  and long-text LibreOffice visual acceptance passed; the full pytest suite passed 758 checks.
+  Focused layout checks cover separate rows, RT-only pairing, and further compaction.
 - Verified all four WebP files decode at the original dimensions and all eight README image
   references resolve. Total screenshot size fell from 2,615,719 to 653,324 bytes (75% smaller).
   Inspected the converted Her slide; 21 Markdown-link checks and `git diff --check` passed.
