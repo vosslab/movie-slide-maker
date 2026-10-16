@@ -50,6 +50,7 @@ EXPECTED_LABELS = (
 	"Genre:",
 	"Director:",
 	"Run time:",
+	"Original language:",
 	"Review Summary:",
 )
 GEOMETRY_ATTRIBUTES = (
@@ -122,6 +123,7 @@ def movie_cases(work_dir: pathlib.Path) -> tuple[slide_maker.moviedata.MovieData
 		metascore=91,
 		metascore_band="high",
 		poster_path=str(normal_poster_path),
+		original_language="English",
 	)
 	long_text = slide_maker.moviedata.MovieData(
 		title="Her",
@@ -150,6 +152,7 @@ def movie_cases(work_dir: pathlib.Path) -> tuple[slide_maker.moviedata.MovieData
 		metascore=91,
 		metascore_band="high",
 		poster_path=str(long_poster_path),
+		original_language="English",
 	)
 	return normal, long_text
 
@@ -182,21 +185,19 @@ def expected_outline_fragments(movie_data: slide_maker.moviedata.MovieData) -> t
 		", ".join(movie_data.genres),
 		", ".join(movie_data.directors),
 		f"{movie_data.runtime_minutes} min",
+		f"Original language: {movie_data.original_language}",
 		movie_data.rt_consensus,
 		slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer),
 		slide_maker.emoji_marks.GREEN_SQUARE_MARK,
 	]
-	if movie_data.rt_audience_score is None:
-		fragments.append("Audience: N/A")
-	else:
-		fragments.extend(
-			(
-				f"{movie_data.rt_audience_score}%",
-				slide_maker.emoji_marks.rt_audience_mark_for_score(
-					movie_data.rt_audience_score
-				),
-			)
+	fragments.extend(
+		(
+			f"{movie_data.rt_audience_score}%",
+			slide_maker.emoji_marks.rt_audience_mark_for_score(
+				movie_data.rt_audience_score
+			),
 		)
+	)
 	return tuple(fragments)
 
 
@@ -205,7 +206,7 @@ def validate_source_text(slide: object, movie_data: slide_maker.moviedata.MovieD
 	"""Validate source roles, labels, bullet meaning, font, and autofit."""
 	title = shape_by_name(slide, slide_maker.slide_builder.TEMPLATE_TITLE_NAME)
 	outline = shape_by_name(slide, slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME)
-	expected_title = f"{movie_data.title} ({movie_data.year})"
+	expected_title = slide_maker.slide_builder.movie_title(movie_data)
 	require(title.text.strip() == expected_title, "Built title changed movie identity")
 	require(
 		title.text_frame.auto_size == pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE,
@@ -221,7 +222,7 @@ def validate_source_text(slide: object, movie_data: slide_maker.moviedata.MovieD
 		require(fragment in outline.text, f"Built outline is missing movie text: {fragment}")
 	paragraphs = outline.text_frame.paragraphs
 	levels = [paragraph.level for paragraph in paragraphs]
-	require(levels == [0, 1, 1, 1, 0, 0, 0, 0], "Built outline bullet hierarchy changed")
+	require(levels == [0, 1, 1, 1, 0, 0, 0, 0, 0], "Built outline bullet hierarchy changed")
 	require("IMDB rating" in paragraphs[1].text, "IMDb rating lost its secondary bullet")
 	require("Critics: RT" in paragraphs[2].text, "Critics ratings lost their secondary bullet")
 	require("Audience:" in paragraphs[3].text, "Popcornmeter lost its secondary bullet")
@@ -230,7 +231,7 @@ def validate_source_text(slide: object, movie_data: slide_maker.moviedata.MovieD
 			for run in paragraph.runs:
 				require(
 					run.font.name == slide_maker.slide_builder.FONT_NAME,
-					f"Built role {shape.name} is not OpenDyslexic",
+					f"Built role {shape.name} is not Atkinson Hyperlegible Next",
 				)
 
 
@@ -278,7 +279,7 @@ def build_and_validate_source(
 	presentation = pptx.Presentation(scratch_path)
 	template_slide = presentation.slides[0]
 	require(template_slide._element.get("show") == "0", "Template slide became visible")
-	expected_title = f"{movie_data.title} ({movie_data.year})"
+	expected_title = slide_maker.slide_builder.movie_title(movie_data)
 	slide = source_movie_slide(presentation, expected_title)
 	validate_source_text(slide, movie_data)
 	validate_source_poster(slide, template_slide, movie_data)
@@ -301,7 +302,7 @@ def write_empty_text_control(
 ) -> None:
 	"""Write an otherwise identical deck with one semantic text role cleared."""
 	presentation = pptx.Presentation(scratch_path)
-	expected_title = f"{movie_data.title} ({movie_data.year})"
+	expected_title = slide_maker.slide_builder.movie_title(movie_data)
 	slide = source_movie_slide(presentation, expected_title)
 	text_shape = shape_by_name(slide, role_name)
 	text_shape.text_frame.clear()
@@ -459,7 +460,7 @@ def validate_converted_text(
 	outline_role = slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME
 	title = normalized_text(frames[title_role])
 	outline = normalized_text(frames[outline_role])
-	expected_title = f"{movie_data.title} ({movie_data.year})"
+	expected_title = slide_maker.slide_builder.movie_title(movie_data)
 	require(title == expected_title, "Converted title changed movie identity")
 	for label in EXPECTED_LABELS:
 		require(label in outline, f"Converted outline is missing literal label: {label}")
@@ -476,7 +477,7 @@ def validate_converted_text(
 		values = referenced_style_values(frames[role], styles)
 		require(
 			slide_maker.slide_builder.FONT_NAME in values,
-			f"Converted role {role} has no OpenDyslexic style reference",
+			f"Converted role {role} has no Atkinson Hyperlegible Next style reference",
 		)
 	title_values = referenced_style_values(frames[title_role], styles)
 	outline_values = referenced_style_values(frames[outline_role], styles)

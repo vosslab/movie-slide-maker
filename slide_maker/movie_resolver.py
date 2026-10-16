@@ -2,6 +2,7 @@
 
 # Standard Library
 import collections.abc
+import dataclasses
 
 # local repo modules
 import slide_maker.movie_input
@@ -13,6 +14,15 @@ OVERVIEW_WORD_LIMIT = 12
 
 class MovieResolutionError(RuntimeError):
 	"""Report that interactive movie resolution could not select a movie."""
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class ResolvedTmdbMovie:
+	"""Retain the selected TMDB id with any search identity that led to it."""
+
+	tmdb_id: int
+	title: str | None
+	year: int | None
 
 
 #============================================
@@ -132,3 +142,26 @@ def resolve_tmdb_id(
 	attempted_input = f"TMDB search for title {movie_input.value!r}"
 	validated_id = _require_positive_tmdb_id(tmdb_id, attempted_input)
 	return validated_id
+
+
+#============================================
+def resolve_tmdb_movie(
+	movie_input: slide_maker.movie_input.MovieInput,
+	read_choice: collections.abc.Callable[[str], str] = input,
+	write_line: collections.abc.Callable[[str], None] = print,
+) -> ResolvedTmdbMovie:
+	"""Resolve a movie while retaining the selected search title and year.
+
+	Identifier input has no trusted display title until TMDB details are fetched.
+	The older ``resolve_tmdb_id`` remains available for callers that only need an id.
+	"""
+	if movie_input.kind != slide_maker.movie_input.InputKind.TITLE:
+		tmdb_id = resolve_tmdb_id(movie_input, read_choice, write_line)
+		return ResolvedTmdbMovie(tmdb_id, None, None)
+	candidates = slide_maker.tmdb_client.search_movies(movie_input.value, movie_input.year)
+	selected = select_movie_candidate(candidates, read_choice, write_line)
+	validated_id = _require_positive_tmdb_id(
+		selected.tmdb_id,
+		f"TMDB search for title {movie_input.value!r}",
+	)
+	return ResolvedTmdbMovie(validated_id, selected.title, selected.year)

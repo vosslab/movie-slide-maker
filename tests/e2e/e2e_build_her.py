@@ -33,6 +33,7 @@ EXPECTED_LABELS = (
 	"Genre:",
 	"Director:",
 	"Run time:",
+	"Original language:",
 	"Review Summary:",
 )
 
@@ -88,11 +89,14 @@ def verify_text_roles(slide: object) -> None:
 	for label in EXPECTED_LABELS:
 		require(label in outline.text, f"Built outline is missing literal label: {label}")
 	levels = [paragraph.level for paragraph in outline.text_frame.paragraphs]
-	require(levels == [0, 1, 1, 1, 0, 0, 0, 0], "Built outline hierarchy changed")
+	require(levels == [0, 1, 1, 1, 0, 0, 0, 0, 0], "Built outline hierarchy changed")
 	for shape in (title, outline):
 		for paragraph in shape.text_frame.paragraphs:
 			for run in paragraph.runs:
-				require(run.font.name == "OpenDyslexic", "Built text font changed")
+				require(
+					run.font.name == slide_maker.slide_builder.FONT_NAME,
+					"Built text does not use the movie font",
+				)
 	imdb_paragraph = outline.text_frame.paragraphs[1]
 	score_runs = [run for run in imdb_paragraph.runs if run.text == "8.0"]
 	require(len(score_runs) == 1, "Built IMDb score run is absent or ambiguous")
@@ -218,6 +222,7 @@ def main() -> None:
 			metascore=91,
 			metascore_band="high",
 			poster_path=str(poster_path),
+			original_language="English",
 		)
 		slide_maker.slide_builder.build_movie_presentation(
 			movie_data,

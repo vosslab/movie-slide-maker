@@ -21,10 +21,10 @@ class ImdbRating:
 	"""IMDb values used to assemble the shared MovieData contract."""
 
 	imdb_id: str
-	title: str
-	year: int
-	imdb_rating: float
-	imdb_votes: int
+	title: str | None = None
+	year: int | None = None
+	imdb_rating: float | None = None
+	imdb_votes: int | None = None
 
 
 class ImdbSourceError(RuntimeError):
@@ -84,7 +84,10 @@ def normalize_imdb_id(imdb_id: str) -> str:
 def fetch_imdb_page(url: str) -> object:
 	"""Fetch one IMDb page through shared HTTP, solving an HTTP 202 challenge."""
 	headers = dict(imdbinfo.services.HEADERS)
-	response = slide_maker.http_client.fetch_url(url, headers)
+	try:
+		response = slide_maker.http_client.fetch_url(url, headers)
+	except slide_maker.http_client.HttpSourceError as error:
+		raise ImdbSourceError(f"IMDb network request failed at {url}") from error
 	if response.status_code == 202:
 		cookies = imdbinfo.services.get_cookies(
 			response.text,
@@ -93,22 +96,29 @@ def fetch_imdb_page(url: str) -> object:
 		headers["Cookie"] = "; ".join(
 			f"{name}={value}" for name, value in cookies.items()
 		)
-		response = slide_maker.http_client.fetch_url(url, headers)
+		try:
+			response = slide_maker.http_client.fetch_url(url, headers)
+		except slide_maker.http_client.HttpSourceError as error:
+			raise ImdbSourceError(f"IMDb network request failed at {url}") from error
 	return response
 
 
 #============================================
 def validate_rating(result: ImdbRating, attempted_url: str) -> ImdbRating:
-	"""Validate the identity and required MovieData rating fields."""
-	if not result.title.strip() or result.year <= 0:
+	"""Validate the IMDb identity and each supplied rating value."""
+	if not result.imdb_id.strip():
 		raise ImdbSourceError(
-			f"IMDb identity fields are missing for {result.imdb_id} at {attempted_url}"
+			f"IMDb identity is missing at {attempted_url}"
 		)
-	if not 0.0 <= result.imdb_rating <= 10.0:
+	if result.title is not None and not result.title.strip():
+		raise ImdbSourceError(f"IMDb title is empty for {result.imdb_id} at {attempted_url}")
+	if result.year is not None and result.year <= 0:
+		raise ImdbSourceError(f"IMDb year is invalid for {result.imdb_id} at {attempted_url}")
+	if result.imdb_rating is not None and not 0.0 <= result.imdb_rating <= 10.0:
 		raise ImdbSourceError(
 			f"IMDb rating is outside 0-10 for {result.imdb_id} at {attempted_url}"
 		)
-	if result.imdb_votes <= 0:
+	if result.imdb_votes is not None and result.imdb_votes < 0:
 		raise ImdbSourceError(
 			f"IMDb vote count is missing for {result.imdb_id} at {attempted_url}"
 		)
@@ -117,24 +127,27 @@ def validate_rating(result: ImdbRating, attempted_url: str) -> ImdbRating:
 
 #============================================
 def rating_from_imdbinfo(imdb_id: str, movie: object, attempted_url: str) -> ImdbRating | None:
-	"""Convert a complete imdbinfo movie model to the shared rating fields."""
-	model_id = getattr(movie, "imdbId")
-	model_title = getattr(movie, "title")
-	model_year = getattr(movie, "year")
-	model_rating = getattr(movie, "rating")
-	model_votes = getattr(movie, "votes")
-	if model_title is None or model_rating is None or model_votes is None or model_year is None:
-		return None
+	"""Convert an imdbinfo model while retaining independently available values."""
+	model_id = getattr(movie, "imdbId", None)
+	model_title = getattr(movie, "title", None)
+	model_year = getattr(movie, "year", None)
+	model_rating = getattr(movie, "rating", None)
+	model_votes = getattr(movie, "votes", None)
 	if model_id != imdb_id:
 		raise ImdbSourceError(
 			f"IMDb returned identity {model_id!r} for {imdb_id} at {attempted_url}"
 		)
+	rating = None
+	if isinstance(model_rating, (int, float)) and not isinstance(model_rating, bool):
+		candidate_rating = float(model_rating)
+		if math.isfinite(candidate_rating) and 0.0 <= candidate_rating <= 10.0:
+			rating = candidate_rating
 	result = ImdbRating(
 		imdb_id=imdb_id,
-		title=str(model_title),
-		year=int(model_year),
-		imdb_rating=float(model_rating),
-		imdb_votes=int(model_votes),
+		title=str(model_title) if isinstance(model_title, str) and model_title.strip() else None,
+		year=int(model_year) if type(model_year) is int and model_year > 0 else None,
+		imdb_rating=rating,
+		imdb_votes=int(model_votes) if type(model_votes) is int and model_votes >= 0 else None,
 	)
 	validated = validate_rating(result, attempted_url)
 	return validated
@@ -155,13 +168,12 @@ def parse_json_ld(body: str, imdb_id: str, attempted_url: str) -> object:
 def movie_json_ld(parser: JsonLdParser, imdb_id: str, attempted_url: str) -> dict:
 	"""Return the Movie JSON-LD record from an IMDb page."""
 	for body in parser.records:
-		parsed = parse_json_ld(body, imdb_id, attempted_url)
+		try:
+			parsed = parse_json_ld(body, imdb_id, attempted_url)
+		except ImdbSourceError:
+			continue
 		if not isinstance(parsed, (dict, list)):
-			message = (
-				f"IMDb JSON-LD has invalid type {type(parsed).__name__} "
-				f"for {imdb_id} at {attempted_url}"
-			)
-			raise ImdbSourceError(message)
+			continue
 		candidates = parsed if isinstance(parsed, list) else [parsed]
 		for candidate in candidates:
 			if isinstance(candidate, dict) and candidate.get("@type") == "Movie":
@@ -258,7 +270,7 @@ def json_ld_year(value: object, imdb_id: str, attempted_url: str) -> int:
 
 #============================================
 def rating_from_json_ld(imdb_id: str, attempted_url: str) -> ImdbRating:
-	"""Fetch and parse the probe-supported direct-page JSON-LD path."""
+	"""Fetch JSON-LD and retain every independently available rating field."""
 	response = fetch_imdb_page(attempted_url)
 	if response.status_code != 200:
 		raise ImdbSourceError(
@@ -272,31 +284,29 @@ def rating_from_json_ld(imdb_id: str, attempted_url: str) -> ImdbRating:
 	parser = JsonLdParser()
 	parser.feed(response.text)
 	record = movie_json_ld(parser, imdb_id, attempted_url)
-	title_value = required_json_ld_value(record, "name", imdb_id, attempted_url)
-	date_value = required_json_ld_value(record, "datePublished", imdb_id, attempted_url)
-	aggregate_value = required_json_ld_value(record, "aggregateRating", imdb_id, attempted_url)
-	title = json_ld_text(title_value, "name", imdb_id, attempted_url)
-	year = json_ld_year(date_value, imdb_id, attempted_url)
-	aggregate_rating = json_ld_mapping(
-		aggregate_value,
-		"aggregateRating",
-		imdb_id,
-		attempted_url,
-	)
-	rating_value = required_json_ld_value(
-		aggregate_rating,
-		"ratingValue",
-		imdb_id,
-		attempted_url,
-	)
-	vote_value = required_json_ld_value(
-		aggregate_rating,
-		"ratingCount",
-		imdb_id,
-		attempted_url,
-	)
-	rating = json_ld_number(rating_value, "ratingValue", imdb_id, attempted_url)
-	votes = json_ld_integer(vote_value, "ratingCount", imdb_id, attempted_url)
+	title_value = record.get("name")
+	title = title_value.strip() if isinstance(title_value, str) and title_value.strip() else None
+	date_value = record.get("datePublished")
+	year = None
+	if isinstance(date_value, str):
+		try:
+			year = datetime.date.fromisoformat(date_value).year
+		except ValueError:
+			year = None
+	aggregate_rating = record.get("aggregateRating")
+	rating = None
+	votes = None
+	if isinstance(aggregate_rating, dict):
+		rating_value = aggregate_rating.get("ratingValue")
+		if isinstance(rating_value, (int, float)) and not isinstance(rating_value, bool):
+			converted_rating = float(rating_value)
+			if math.isfinite(converted_rating) and 0.0 <= converted_rating <= 10.0:
+				rating = converted_rating
+		vote_value = aggregate_rating.get("ratingCount")
+		if type(vote_value) is int and vote_value >= 0:
+			votes = vote_value
+		elif isinstance(vote_value, str) and vote_value.isdigit():
+			votes = int(vote_value)
 	result = ImdbRating(
 		imdb_id=imdb_id,
 		title=title,

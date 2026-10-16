@@ -27,7 +27,7 @@ def count_identity_matches(
 	actual_year: int | None,
 	actual_directors: list[str],
 	expected_title: str,
-	expected_year: int,
+	expected_year: int | None,
 	expected_directors: list[str],
 ) -> int:
 	"""Count independent title, release-year, and director agreements.
@@ -44,11 +44,13 @@ def count_identity_matches(
 		The number of matching identity attributes, from zero through three.
 	"""
 	matches = 0
-	if normalize_identity_text(actual_title) == normalize_identity_text(expected_title):
+	if actual_title.strip() and expected_title.strip() and (
+		normalize_identity_text(actual_title) == normalize_identity_text(expected_title)
+	):
 		matches += 1
-	if actual_year == expected_year:
+	if actual_year is not None and expected_year is not None and actual_year == expected_year:
 		matches += 1
-	director_match = any(
+	director_match = bool(actual_directors) and bool(expected_directors) and any(
 		normalize_identity_text(actual) == normalize_identity_text(expected)
 		for actual in actual_directors
 		for expected in expected_directors

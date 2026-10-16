@@ -47,7 +47,7 @@ class ReviewDeckAccepted:
 
 	requested_identity: str
 	title: str
-	year: int
+	year: int | None
 	page_number: int
 
 
@@ -224,7 +224,7 @@ def build_scratch_deck(
 	require(template_path.is_file(), f"Movie slide template is absent: {template_path}")
 	presentation = pptx.Presentation(template_path)
 	for request, movie_data in accepted_movies:
-		# Request identity has already been paired to the provider result.
+		# Sparse data deliberately retains the exact requested title and year.
 		require(
 			movie_data.title.casefold() == request.title.casefold()
 			and movie_data.year == request.year,
@@ -241,19 +241,18 @@ def validate_deck_identities(
 	output_path: pathlib.Path,
 	accepted_movies: list[tuple[ReviewMovieRequest, slide_maker.moviedata.MovieData]],
 ) -> None:
-	"""Check converted page identities, order, and mandatory displayed fields."""
+	"""Check converted page identities and order for available movie content."""
 	with zipfile.ZipFile(output_path) as archive:
 		content_root = slide_maker.slide_convert.parse_xml(archive, "content.xml")
 		pages = slide_maker.slide_convert.movie_pages(content_root, len(accepted_movies))
 		converted_identities = []
 		for page in pages:
 			frames = slide_maker.slide_convert.named_frames(page)
-			slide_maker.slide_convert.validate_displayed_fields(page)
 			title_frame = frames[slide_maker.slide_builder.TEMPLATE_TITLE_NAME]
 			identity = slide_maker.slide_convert.normalized_frame_text(title_frame)
 			converted_identities.append(identity)
 	expected_identities = [
-		f"{movie_data.title} ({movie_data.year})"
+		slide_maker.slide_builder.movie_title(movie_data)
 		for request, movie_data in accepted_movies
 	]
 	require(
@@ -435,7 +434,7 @@ def build_review_deck(
 			providers,
 			write_line,
 		)
-		require(bool(accepted_movies), "Review deck has no fully validated movies")
+		require(bool(accepted_movies), "Review deck has no usable movie titles")
 		scratch_path = work_directory / "review_deck.pptx"
 		build_scratch_deck(accepted_movies, template_path, scratch_path)
 		staged_product_path = work_directory / "review_deck.odp"
@@ -472,7 +471,7 @@ def main() -> None:
 	for accepted in result.accepted:
 		print(
 			f"Accepted page {accepted.page_number}: {accepted.requested_identity} "
-			f"as {accepted.title} ({accepted.year})"
+			f"as {accepted.title}" + (f" ({accepted.year})" if accepted.year is not None else "")
 		)
 	for failure in result.failures:
 		print(f"Rejected: {failure.diagnostic}")

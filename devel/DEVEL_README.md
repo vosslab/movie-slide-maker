@@ -96,3 +96,20 @@ The command replaces ignored captures and runtime cache data under
 `../docs/active_plans/audits/movie_source_probe_report.md`. Captures can include
 provider response content; the manifest records that credential values are not
 captured.
+
+## Refresh README screenshots
+
+Use the existing batch renderer from the repository root. It generates the actual ODP,
+converts it to PDF with LibreOffice, and renders pages with Poppler:
+
+```bash
+source source_me.sh && python3 -m slide_maker.review_deck < /dev/null
+cp output_smoke/review_deck_pages/slide_01.png docs/screenshots/movie_slide_her.png
+cp output_smoke/review_deck_pages/slide_05.png docs/screenshots/movie_slide_a_ghost_waits.png
+```
+
+Before copying, confirm the accepted page order is Her first and A Ghost Waits fifth.
+Inspect both images for clipping and verify the README captions still match provider coverage.
+Keep PNGs within 1920 pixels on the longer edge and about 1 MB each. The existing renderer
+produces 1654 by 1034 pixel images. Update the capture date in [README.md](../README.md)
+and record verification in [CHANGELOG.md](../docs/CHANGELOG.md).

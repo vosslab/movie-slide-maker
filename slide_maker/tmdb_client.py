@@ -2,9 +2,13 @@
 
 # Standard Library
 import re
+import io
 import json
 import pathlib
 import dataclasses
+
+# PIP3 modules
+import PIL.Image
 
 # local repo modules
 import slide_maker.config
@@ -35,14 +39,16 @@ class TmdbMovie:
 	"""TMDB-owned values that map directly into ``moviedata.MovieData``."""
 
 	title: str
-	year: int
-	plot: str
-	genres: list[str]
-	runtime_minutes: int
-	directors: list[str]
-	tmdb_id: int
-	imdb_id: str
-	poster_path: str
+	year: int | None = None
+	plot: str = ""
+	genres: list[str] = dataclasses.field(default_factory=list)
+	runtime_minutes: int | None = None
+	directors: list[str] = dataclasses.field(default_factory=list)
+	tmdb_id: int | None = None
+	imdb_id: str | None = None
+	poster_path: str | None = None
+	original_language: str | None = None
+	poster_diagnostic: str | None = None
 
 
 #============================================
@@ -80,7 +86,10 @@ def _fetch_json(
 		"Accept": "application/json",
 		"Authorization": f"Bearer {token}",
 	}
-	response = slide_maker.http_client.fetch_url(url, headers, params)
+	try:
+		response = slide_maker.http_client.fetch_url(url, headers, params)
+	except slide_maker.http_client.HttpSourceError as error:
+		raise _source_error(identity, url, "network request failed") from error
 	attempted = str(response.url)
 	_require(response.status_code == 200, identity, attempted, f"HTTP {response.status_code}")
 	try:
@@ -105,6 +114,8 @@ def _release_year(
 		r"[0-9]{4}-[0-9]{2}-[0-9]{2}",
 		release_date,
 	)
+	if not valid_date and not required:
+		return None
 	_require(bool(valid_date), identity, attempted, "release_date was missing or invalid")
 	year = int(release_date[:4])
 	return year
@@ -216,21 +227,99 @@ def _download_poster(
 	remote_path: str,
 	poster_directory: str | pathlib.Path,
 	identity: str,
-) -> str:
-	"""Download the original TMDB poster into the requested directory."""
+) -> tuple[str | None, str | None]:
+	"""Download a decodable original TMDB poster with an absence diagnostic."""
 	url = f"{TMDB_IMAGE_ROOT}{remote_path}"
 	suffix = pathlib.PurePosixPath(remote_path).suffix
-	_require(bool(suffix), identity, url, "poster path had no file extension")
-	response = slide_maker.http_client.fetch_url(url, {"Accept": "image/*"})
-	attempted = str(response.url)
-	_require(response.status_code == 200, identity, attempted, f"HTTP {response.status_code}")
-	_require(bool(response.content), identity, attempted, "poster response was empty")
+	if not suffix:
+		return None, "poster path had no file extension"
+	try:
+		response = slide_maker.http_client.fetch_url(url, {"Accept": "image/*"})
+	except slide_maker.http_client.HttpSourceError:
+		return None, "poster download failed"
+	if response.status_code != 200 or not response.content:
+		return None, f"poster download returned HTTP {response.status_code}"
+	try:
+		with PIL.Image.open(io.BytesIO(response.content)) as image:
+			image.verify()
+	except (PIL.UnidentifiedImageError, OSError):
+		return None, "poster data was not a decodable image"
 
 	output_directory = pathlib.Path(poster_directory)
 	output_directory.mkdir(parents=True, exist_ok=True)
 	output_path = output_directory / f"tmdb_{tmdb_id}_poster{suffix}"
 	output_path.write_bytes(response.content)
-	return str(output_path)
+	return str(output_path), None
+
+
+#============================================
+def _optional_text(data: dict, key: str) -> str | None:
+	"""Return a stripped optional text field when TMDB supplied one."""
+	value = data.get(key)
+	if isinstance(value, str) and value.strip():
+		return value.strip()
+	return None
+
+
+#============================================
+def _optional_year(data: dict, identity: str, attempted: str) -> int | None:
+	"""Return a valid optional TMDB release year."""
+	release_date = data.get("release_date")
+	if release_date in (None, ""):
+		return None
+	return _release_year(release_date, identity, attempted, False)
+
+
+#============================================
+def _optional_names(records: object, key: str) -> list[str]:
+	"""Extract nonempty names from optional TMDB object records."""
+	if not isinstance(records, list):
+		return []
+	names = []
+	for record in records:
+		if isinstance(record, dict):
+			name = _optional_text(record, key)
+			if name is not None:
+				names.append(name)
+	return names
+
+
+#============================================
+def _original_language_name(
+	data: dict,
+	token: str,
+) -> str | None:
+	"""Resolve TMDB's original-language code to one display language name."""
+	code = _optional_text(data, "original_language")
+	if code is None:
+		return None
+	spoken_languages = data.get("spoken_languages")
+	if isinstance(spoken_languages, list):
+		for language in spoken_languages:
+			if not isinstance(language, dict):
+				continue
+			if language.get("iso_639_1") == code:
+				name = _optional_text(language, "english_name")
+				if name is not None:
+					return name
+	url = f"{TMDB_API_ROOT}/configuration/languages"
+	headers = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
+	try:
+		response = slide_maker.http_client.fetch_url(url, headers)
+	except slide_maker.http_client.HttpSourceError:
+		return None
+	if response.status_code != 200:
+		return None
+	try:
+		language_records = json.loads(response.text)
+	except json.JSONDecodeError:
+		return None
+	if isinstance(language_records, list):
+		for language in language_records:
+			if isinstance(language, dict) and language.get("iso_639_1") == code:
+				name = _optional_text(language, "english_name")
+				return name
+	return None
 
 
 #============================================
@@ -259,101 +348,60 @@ def fetch_movie(tmdb_id: int, poster_directory: str | pathlib.Path) -> TmdbMovie
 		"append_to_response": "credits,external_ids",
 		"language": "en-US",
 	}
+	token = slide_maker.config.load()
 	data, attempted = _fetch_json(
 		f"{TMDB_API_ROOT}/movie/{tmdb_id}",
-		slide_maker.config.load(),
+		token,
 		params,
 		identity,
 	)
 
 	returned_id = _required_value(data, "id", identity, attempted)
 	title = _required_value(data, "title", identity, attempted)
-	plot = _required_value(data, "overview", identity, attempted)
-	runtime_minutes = _required_value(data, "runtime", identity, attempted)
-	genres_data = _required_value(data, "genres", identity, attempted)
-	credits = _required_value(data, "credits", identity, attempted)
-	external_ids = _required_value(data, "external_ids", identity, attempted)
-	remote_poster_path = _required_value(data, "poster_path", identity, attempted)
 	_require(returned_id == tmdb_id, identity, attempted, "returned id did not match")
 	_require(isinstance(title, str) and bool(title.strip()), identity, attempted, "title was missing")
-	_require(isinstance(plot, str) and bool(plot.strip()), identity, attempted, "overview was missing")
-	_require(
-		type(runtime_minutes) is int and runtime_minutes > 0,
-		identity,
-		attempted,
-		"runtime was missing or invalid",
-	)
-	_require(
-		isinstance(genres_data, list) and bool(genres_data),
-		identity,
-		attempted,
-		"genres were missing",
-	)
-	_require(isinstance(credits, dict), identity, attempted, "credits was not an object")
-	_require(isinstance(external_ids, dict), identity, attempted, "external_ids was not an object")
-	_require(
-		isinstance(remote_poster_path, str) and bool(remote_poster_path.strip()),
-		identity,
-		attempted,
-		"poster_path was missing",
-	)
-
-	_require(
-		all(isinstance(genre, dict) for genre in genres_data),
-		identity,
-		attempted,
-		"a genre was not an object",
-	)
-	genres = [
-		_required_value(genre, "name", identity, attempted)
-		for genre in genres_data
-	]
-	crew = _required_value(credits, "crew", identity, attempted)
-	_require(isinstance(crew, list), identity, attempted, "credits crew was not a list")
-	_require(
-		all(isinstance(person, dict) for person in crew),
-		identity,
-		attempted,
-		"a credits crew member was not an object",
-	)
-	directors = [
-		_required_value(person, "name", identity, attempted)
-		for person in crew
-		if _required_value(person, "job", identity, attempted) == "Director"
-	]
-	imdb_id = _required_value(external_ids, "imdb_id", identity, attempted)
-	_require(
-		bool(genres) and all(isinstance(genre, str) and genre.strip() for genre in genres),
-		identity,
-		attempted,
-		"genre names were missing",
-	)
-	_require(
-		bool(directors) and all(isinstance(director, str) and director.strip() for director in directors),
-		identity,
-		attempted,
-		"director names were missing",
-	)
-	_require(
-		isinstance(imdb_id, str) and IMDB_ID_PATTERN.fullmatch(imdb_id) is not None,
-		identity,
-		attempted,
-		"IMDb cross-provider id was missing or invalid",
-	)
-	release_date = _required_value(data, "release_date", identity, attempted)
-	year = _release_year(release_date, identity, attempted, True)
-	_require(year is not None, identity, attempted, "release year was missing")
-	poster_path = _download_poster(tmdb_id, remote_poster_path, poster_directory, identity)
+	year = _optional_year(data, identity, attempted)
+	plot = _optional_text(data, "overview")
+	genres = _optional_names(data.get("genres"), "name")
+	runtime_value = data.get("runtime")
+	runtime_minutes = runtime_value if type(runtime_value) is int and runtime_value > 0 else None
+	credits = data.get("credits")
+	crew = credits.get("crew") if isinstance(credits, dict) else None
+	directors = []
+	if isinstance(crew, list):
+		directors = _optional_names(
+			[person for person in crew if isinstance(person, dict) and person.get("job") == "Director"],
+			"name",
+		)
+	external_ids = data.get("external_ids")
+	imdb_id = _optional_text(external_ids, "imdb_id") if isinstance(external_ids, dict) else None
+	if imdb_id is not None and IMDB_ID_PATTERN.fullmatch(imdb_id) is None:
+		imdb_id = None
+	remote_poster_path = _optional_text(data, "poster_path")
+	poster_path = None
+	poster_diagnostic = None
+	if remote_poster_path is not None:
+		poster_path, poster_diagnostic = _download_poster(
+			tmdb_id,
+			remote_poster_path,
+			poster_directory,
+			identity,
+		)
+	else:
+		poster_diagnostic = "TMDB did not provide a poster path"
+	original_language = _original_language_name(data, token)
 
 	movie = TmdbMovie(
 		title=title.strip(),
 		year=year,
-		plot=plot.strip(),
+		plot=plot if plot is not None else "",
 		genres=genres,
 		runtime_minutes=runtime_minutes,
 		directors=directors,
 		tmdb_id=returned_id,
 		imdb_id=imdb_id,
 		poster_path=poster_path,
+		original_language=original_language,
+		poster_diagnostic=poster_diagnostic,
 	)
 	return movie

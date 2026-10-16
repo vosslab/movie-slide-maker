@@ -23,18 +23,11 @@ PRESENTATION_NS = "urn:oasis:names:tc:opendocument:xmlns:presentation:1.0"
 STYLE_NS = "urn:oasis:names:tc:opendocument:xmlns:style:1.0"
 SVG_NS = "urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
 XLINK_NS = "http://www.w3.org/1999/xlink"
+TEXT_NS = "urn:oasis:names:tc:opendocument:xmlns:text:1.0"
 REQUIRED_ROLES = (
 	slide_maker.slide_builder.TEMPLATE_TITLE_NAME,
 	slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME,
 	slide_maker.slide_builder.TEMPLATE_POSTER_NAME,
-)
-REQUIRED_FIELDS = (
-	"IMDB rating",
-	"Critics: RT",
-	"Audience:",
-	"Genre:",
-	"Director:",
-	"Run time:",
 )
 GEOMETRY_TOLERANCE_CM = 0.1
 EXPECTED_PAGE_WIDTH_CM = 28.0
@@ -135,7 +128,7 @@ def movie_pages(
 			continue
 		roles = set(named_frames(page))
 		require(
-			roles == set(REQUIRED_ROLES),
+			slide_maker.slide_builder.TEMPLATE_TITLE_NAME in roles,
 			f"Converted ODP has a visible non-movie slide with roles: {sorted(roles)!r}",
 		)
 		pages.append(page)
@@ -190,14 +183,12 @@ def validate_page_size(
 
 #============================================
 def validate_source_displayed_fields(source_shapes: dict[str, object]) -> None:
-	"""Validate required title, labels, and poster payload in one source slide."""
+	"""Validate the title and any included poster payload in one source slide."""
 	title = source_shapes[slide_maker.slide_builder.TEMPLATE_TITLE_NAME]
-	outline = source_shapes[slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME]
-	poster = source_shapes[slide_maker.slide_builder.TEMPLATE_POSTER_NAME]
 	require(bool(title.text.strip()), "Source movie slide title is empty")
-	for field in REQUIRED_FIELDS:
-		require(field in outline.text, f"Source movie slide is missing displayed field: {field}")
-	require(bool(poster.image.blob), "Source movie slide poster payload is empty")
+	poster = source_shapes.get(slide_maker.slide_builder.TEMPLATE_POSTER_NAME)
+	if poster is not None:
+		require(bool(poster.image.blob), "Source movie slide poster payload is empty")
 
 
 #============================================
@@ -220,7 +211,7 @@ def source_movie_shape_sets(
 			continue
 		shapes = {shape.name: shape for shape in slide.shapes if shape.name in REQUIRED_ROLES}
 		require(
-			set(shapes) == set(REQUIRED_ROLES),
+			slide_maker.slide_builder.TEMPLATE_TITLE_NAME in shapes,
 			f"Source PPTX has a visible non-movie slide with roles: {sorted(shapes)!r}",
 		)
 		validate_source_displayed_fields(shapes)
@@ -251,7 +242,7 @@ def validate_geometry(
 ) -> None:
 	"""Compare converted frame geometry with the source using the plan tolerance."""
 	attributes = (("x", "left"), ("y", "top"), ("width", "width"), ("height", "height"))
-	for role in REQUIRED_ROLES:
+	for role in source_shapes:
 		for odf_name, source_name in attributes:
 			value = frames[role].get(f"{{{SVG_NS}}}{odf_name}")
 			require(bool(value), f"Converted role {role} has no {odf_name} geometry")
@@ -266,24 +257,33 @@ def validate_geometry(
 
 #============================================
 def validate_displayed_fields(page: xml.etree.ElementTree.Element) -> None:
-	"""Validate required title, labels, and poster payload on the movie slide."""
+	"""Validate that a converted movie slide retains its title."""
 	frames = named_frames(page)
 	title_text = "".join(
 		frames[slide_maker.slide_builder.TEMPLATE_TITLE_NAME].itertext()
 	).strip()
 	require(bool(title_text), "Converted movie slide title is empty")
-	outline_text = " ".join(
-		frames[slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME].itertext()
-	)
-	for field in REQUIRED_FIELDS:
-		require(field in outline_text, f"Converted movie slide is missing displayed field: {field}")
 
 
 #============================================
 def normalized_frame_text(frame: xml.etree.ElementTree.Element) -> str:
 	"""Return whitespace-normalized text from one converted semantic frame."""
-	plain_text = " ".join("".join(frame.itertext()).split())
+	plain_text = " ".join(odf_text(frame).split())
 	return plain_text
+
+
+#============================================
+def odf_text(element: xml.etree.ElementTree.Element) -> str:
+	"""Read ODF text, including its explicit spaces and paragraph boundaries."""
+	text = element.text or ""
+	if element.tag in (f"{{{TEXT_NS}}}s", f"{{{TEXT_NS}}}tab", f"{{{TEXT_NS}}}line-break"):
+		text += " "
+	for child in element:
+		text += odf_text(child)
+	if element.tag in (f"{{{TEXT_NS}}}p", f"{{{TEXT_NS}}}h"):
+		text += " "
+	text += element.tail or ""
+	return text
 
 
 #============================================
@@ -292,7 +292,9 @@ def validate_poster(
 	page: xml.etree.ElementTree.Element,
 ) -> None:
 	"""Validate that the poster role references a nonempty packaged image."""
-	poster = named_frames(page)[slide_maker.slide_builder.TEMPLATE_POSTER_NAME]
+	poster = named_frames(page).get(slide_maker.slide_builder.TEMPLATE_POSTER_NAME)
+	if poster is None:
+		return
 	images = list(poster.iter(f"{{{DRAW_NS}}}image"))
 	require(len(images) == 1, "Converted movie slide poster role has no single image")
 	href = images[0].get(f"{{{XLINK_NS}}}href")
@@ -318,20 +320,24 @@ def validate_odp(
 		pages = movie_pages(content_root, expected_movie_slides)
 		for index, (page, source_shapes) in enumerate(zip(pages, source_shape_sets, strict=True), 1):
 			frames = named_frames(page)
+			require(
+				set(frames) == set(source_shapes),
+				f"Converted movie slide {index} changed its included content roles",
+			)
 			validate_page_size(page, styles_root)
 			validate_displayed_fields(page)
 			validate_poster(archive, page)
 			validate_geometry(frames, source_shapes)
-			converted_title = normalized_frame_text(
-				frames[slide_maker.slide_builder.TEMPLATE_TITLE_NAME]
-			)
-			source_title = " ".join(
-				source_shapes[slide_maker.slide_builder.TEMPLATE_TITLE_NAME].text.split()
-			)
-			require(
-				converted_title == source_title,
-				f"Converted movie slide {index} changed title identity: {converted_title}",
-			)
+			for role, shape in source_shapes.items():
+				if not shape.has_text_frame:
+					continue
+				converted_text = normalized_frame_text(frames[role])
+				# Paragraph boundaries are whitespace, not concatenated words.
+				source_text = " ".join(shape.text.split())
+				require(
+					converted_text == source_text,
+					f"Converted movie slide {index} changed {role} text",
+				)
 
 
 #============================================

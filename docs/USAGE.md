@@ -17,9 +17,9 @@ At the prompt, enter a title and optional year, an IMDb id or URL, or a TMDB id 
 ```text
 Movie title/year, IMDb id or URL, or TMDB id or URL: https://www.imdb.com/title/tt0316654/
 Resolving movie identity with TMDB...
-Resolved Spider-Man 2 (2004); fetching ratings...
-All provider data validated; building the presentation...
-Created validated movie slide: spider_man_2_2004.odp
+Resolved Spider-Man 2; fetching available ratings...
+Available movie data assembled; building the presentation...
+Created movie slide: spider_man_2_2004.odp
 ```
 
 The resulting `spider_man_2_2004.odp` is a standalone one-movie deck in the repository root. Its
@@ -29,7 +29,10 @@ deck's exact 28 by 17.5 cm page size, so copying a slide into that deck does not
 The ratings block highlights the IMDb score in yellow and abbreviates large vote counts, such as
 `435k` or `1.2M`. Rotten Tomatoes critics use a rotten mark below 60, a tomato from 60 through 80,
 and a tomato with a trophy above 80. The optional audience score appears on its own Popcornmeter
-line; a missing audience score displays as `N/A`.
+line when available. Missing fields are omitted, including unavailable ratings and reviews.
+The slide displays one `Original language:` value when known. This is the movie's original
+language, not a list of spoken languages or a claim about subtitles in a particular viewing copy.
+Text uses Atkinson Hyperlegible Next. Without a poster, the outline uses the available body width.
 
 ## Accepted movie inputs
 
@@ -60,10 +63,9 @@ With no arguments, the module resolves this exact built-in list in order:
 4. `Sinners (2025)`
 5. `A Ghost Waits (2020)`
 
-Each movie either becomes one accepted page or receives a contextual source-and-identity failure.
-The current acceptance run produced four pages and rejected `A Ghost Waits (2020)` at Rotten
-Tomatoes because its required data was unavailable. This count can change when live provider data
-changes; the batch never includes a partially validated movie.
+Each movie becomes a page using its available information. Source omissions are reported in the
+console and do not exclude a movie. An unresolved ambiguity still needs clarification; the batch
+reports that request without choosing a different movie.
 
 The module writes `output_smoke/review_deck.odp` and one PNG per accepted page under
 `output_smoke/review_deck_pages/`.
@@ -79,22 +81,28 @@ The module writes `output_smoke/review_deck.odp` and one PNG per accepted page u
 - `output_smoke/visual_accept/her_2013.png` and
   `output_smoke/visual_accept/her_2013_long_text.png` are generated M15 render evidence.
 - `output_smoke/review_deck_pages/slide_<NN>.png` is generated M18 page evidence.
+- `output_smoke/adaptive_slides/adaptive_slides.odp` covers complete and sparse examples.
+- `output_smoke/example/her_2013.odp` is the illustrated documentation example, using fixed
+  example ratings rather than a live provider snapshot.
 
 `SLIDE_ARTIFACTS/` is ignored local reference material for comparison and planning. The runtime does
 not read it.
 
 ## Failure behavior
 
-All four provider results and the poster must pass identity and mandatory-field validation before
-the builder writes a product. Provider and contract failures name the source and movie identity and
-create no new PPTX or ODP. If LibreOffice conversion or ODP validation fails, the command preserves
-the scratch PPTX for diagnosis but does not publish a validated ODP. A Rotten Tomatoes critics
-consensus is optional: its Review Summary bullet is omitted when unavailable. A Metacritic score
-is required; the Popcornmeter is optional.
+Missing metadata has no minimum completeness threshold. Retrieval failures and unusable values
+produce source diagnostics while other information remains usable. A failed poster download leaves
+a text slide. When enrichment is unavailable, a title request can still produce a title-only slide;
+an identifier without a discoverable title prompts for a title. No missing value is invented.
 
-For explicitly approved omissions, programmatic callers can supply `None` for both `metascore`
-and `metascore_band`; the builder then omits the Metacritic portion of the critics line. The normal
-live pipeline continues to report Metacritic source failures.
+Programmatic callers can construct `MovieData(title="Movie title")` and supply whichever optional
+fields are available. Absent scalar values use `None`, text uses empty strings, and lists are empty.
+Rating marks are derived from the available scores. Unknown years are omitted from titles and
+filenames. Original language is a single English display name.
+
+Conversion checks that the included content survives into the ODP. If LibreOffice conversion or
+ODP validation fails, the scratch PPTX remains available for diagnosis and no validated ODP is
+published. Configuration errors and unexpected programming errors remain visible.
 
 On macOS, the converter launches LibreOffice through LaunchServices in headless mode. This avoids
 the intermittent AppKit registration abort and visible crash dialog caused by starting the

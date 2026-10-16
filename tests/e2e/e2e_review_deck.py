@@ -127,16 +127,20 @@ def validate_page_semantics(
 	page: xml.etree.ElementTree.Element,
 	record: slide_maker.review_deck.ReviewDeckAccepted,
 ) -> None:
-	"""Validate identity, mandatory labels, and poster payload for one ODP page."""
+	"""Validate identity and any content roles retained for one ODP page."""
 	frames = slide_maker.slide_convert.named_frames(page)
 	title_role = slide_maker.slide_builder.TEMPLATE_TITLE_NAME
-	outline_role = slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME
 	title_text = slide_maker.slide_convert.normalized_frame_text(frames[title_role])
-	outline_text = slide_maker.slide_convert.normalized_frame_text(frames[outline_role])
 	expected_title = f"{record.title} ({record.year})"
 	require(title_text == expected_title, f"Review page changed movie identity: {title_text}")
-	for field in slide_maker.slide_convert.REQUIRED_FIELDS:
-		require(outline_text.count(field) == 1, f"{expected_title} does not contain one {field!r} label")
+	for role, frame in frames.items():
+		if role == title_role:
+			continue
+		require(
+			bool(slide_maker.slide_convert.normalized_frame_text(frame))
+			or role == slide_maker.slide_builder.TEMPLATE_POSTER_NAME,
+			f"{expected_title} retained an empty {role} role",
+		)
 	slide_maker.slide_convert.validate_poster(archive, page)
 
 

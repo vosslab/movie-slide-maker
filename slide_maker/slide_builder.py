@@ -20,7 +20,7 @@ import slide_maker.emoji_marks
 TEMPLATE_TITLE_NAME = "movie_title"
 TEMPLATE_OUTLINE_NAME = "movie_outline"
 TEMPLATE_POSTER_NAME = "movie_poster"
-FONT_NAME = "OpenDyslexic"
+FONT_NAME = "Atkinson Hyperlegible Next"
 TITLE_FONT_SIZE = pptx.util.Pt(40.4)
 PRIMARY_FONT_SIZE = pptx.util.Pt(22.0)
 SECONDARY_FONT_SIZE = pptx.util.Pt(19.2)
@@ -90,7 +90,7 @@ def add_styled_run(
 	font_size: pptx.util.Length,
 	bold: bool = False,
 ) -> object:
-	"""Add one consistently styled OpenDyslexic run."""
+	"""Add one consistently styled accessible text run."""
 	run = paragraph.add_run()
 	run.text = text
 	run.font.name = FONT_NAME
@@ -124,7 +124,7 @@ def add_text_paragraph(
 	font_size: pptx.util.Length,
 	first: bool,
 ) -> None:
-	"""Add one OpenDyslexic paragraph at the requested outline level."""
+	"""Add one paragraph at the requested outline level."""
 	if first:
 		paragraph = text_frame.paragraphs[0]
 	else:
@@ -137,10 +137,11 @@ def add_text_paragraph(
 def add_imdb_paragraph(
 	text_frame: object,
 	movie_data: slide_maker.moviedata.MovieData,
+	level: int = 1,
 ) -> None:
 	"""Add the IMDb line with its score highlighted in brand yellow."""
-	paragraph = text_frame.add_paragraph()
-	paragraph.level = 1
+	paragraph = text_frame.add_paragraph() if text_frame.text else text_frame.paragraphs[0]
+	paragraph.level = level
 	add_styled_run(paragraph, "IMDB rating ", SECONDARY_FONT_SIZE)
 	score_run = add_styled_run(
 		paragraph,
@@ -149,16 +150,19 @@ def add_imdb_paragraph(
 		True,
 	)
 	set_run_highlight(score_run, IMDB_SCORE_HIGHLIGHT)
-	vote_text = format_compact_count(movie_data.imdb_votes)
-	add_styled_run(paragraph, f", {vote_text} votes", SECONDARY_FONT_SIZE)
+	if movie_data.imdb_votes is not None:
+		vote_text = format_compact_count(movie_data.imdb_votes)
+		add_styled_run(paragraph, f", {vote_text} votes", SECONDARY_FONT_SIZE)
 
 
 #============================================
 def format_rating_marks(
 	movie_data: slide_maker.moviedata.MovieData,
-) -> tuple[str, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None]:
 	"""Return the requested critic, audience, and Metascore display marks."""
-	rt_mark = slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer)
+	rt_mark = None
+	if movie_data.rt_tomatometer is not None:
+		rt_mark = slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer)
 	if movie_data.rt_audience_score is None:
 		audience_mark = None
 	else:
@@ -172,8 +176,30 @@ def format_rating_marks(
 	}
 	metascore_mark = None
 	if movie_data.metascore is not None:
-		metascore_mark = metascore_marks[movie_data.metascore_band]
+		band = slide_maker.emoji_marks.metascore_band_for_score(movie_data.metascore)
+		metascore_mark = metascore_marks[band]
 	return rt_mark, audience_mark, metascore_mark
+
+
+#============================================
+def movie_title(movie_data: slide_maker.moviedata.MovieData) -> str:
+	"""Format the title with a release year only when known."""
+	title = movie_data.title
+	if movie_data.year is not None:
+		title += f" ({movie_data.year})"
+	return title
+
+
+#============================================
+def normalize_template_fonts(presentation: object) -> None:
+	"""Replace legacy inherited fonts in slides, layouts, and masters."""
+	for part in presentation.part.package.iter_parts():
+		if not hasattr(part, "_element"):
+			continue
+		for element in part._element.iter():
+			font = element.get("typeface")
+			if font is not None and "OpenDyslexic" in font:
+				element.set("typeface", FONT_NAME)
 
 
 #============================================
@@ -186,7 +212,7 @@ def fill_title(slide: object, movie_data: slide_maker.moviedata.MovieData) -> No
 	text_frame.word_wrap = True
 	text_frame.vertical_anchor = pptx.enum.text.MSO_VERTICAL_ANCHOR.MIDDLE
 	text_frame.auto_size = pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-	title_text = f"{movie_data.title} ({movie_data.year})"
+	title_text = movie_title(movie_data)
 	add_text_paragraph(text_frame, title_text, 0, TITLE_FONT_SIZE, True)
 
 
@@ -196,54 +222,57 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 	outline_shape = shape_by_name(slide, TEMPLATE_OUTLINE_NAME)
 	require(outline_shape.has_text_frame, "Movie outline role has no text frame")
 	rt_mark, audience_mark, metascore_mark = format_rating_marks(movie_data)
-	if movie_data.rt_audience_score is None:
-		audience_text = "Audience: N/A"
-	else:
-		audience_text = f"Audience: {audience_mark} {movie_data.rt_audience_score}%"
-	critics_text = f"Critics: RT {rt_mark} {movie_data.rt_tomatometer}%"
-	if movie_data.metascore is not None:
-		critics_text += f" / MS {metascore_mark} {movie_data.metascore}"
 	text_frame = outline_shape.text_frame
 	text_frame.clear()
 	text_frame.word_wrap = True
 	text_frame.auto_size = pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-	add_text_paragraph(text_frame, movie_data.plot, 0, PRIMARY_FONT_SIZE, True)
-	add_imdb_paragraph(text_frame, movie_data)
-	add_text_paragraph(text_frame, critics_text, 1, SECONDARY_FONT_SIZE, False)
-	add_text_paragraph(text_frame, audience_text, 1, SECONDARY_FONT_SIZE, False)
-	add_text_paragraph(
-		text_frame,
-		f"Genre: {', '.join(movie_data.genres)}",
-		0,
-		PRIMARY_FONT_SIZE,
-		False,
-	)
-	add_text_paragraph(
-		text_frame,
-		f"Director: {', '.join(movie_data.directors)}",
-		0,
-		PRIMARY_FONT_SIZE,
-		False,
-	)
-	add_text_paragraph(
-		text_frame,
-		f"Run time: {movie_data.runtime_minutes} min",
-		0,
-		PRIMARY_FONT_SIZE,
-		False,
-	)
-	if movie_data.rt_consensus.strip():
+	if movie_data.plot:
+		add_text_paragraph(text_frame, movie_data.plot, 0, PRIMARY_FONT_SIZE, True)
+	rating_level = 1 if movie_data.plot else 0
+	if movie_data.imdb_rating is not None:
+		add_imdb_paragraph(text_frame, movie_data, rating_level)
+	elif movie_data.imdb_votes is not None:
+		votes = format_compact_count(movie_data.imdb_votes)
 		add_text_paragraph(
-			text_frame,
-			f"Review Summary: {movie_data.rt_consensus}",
-			0,
-			PRIMARY_FONT_SIZE,
-			False,
+			text_frame, f"IMDb: {votes} votes", rating_level,
+			SECONDARY_FONT_SIZE, not text_frame.text,
 		)
+	critics = []
+	if movie_data.rt_tomatometer is not None:
+		critics.append(f"RT {rt_mark} {movie_data.rt_tomatometer}%")
+	if movie_data.metascore is not None:
+		critics.append(f"MS {metascore_mark} {movie_data.metascore}")
+	if critics:
+		add_text_paragraph(
+			text_frame, "Critics: " + " / ".join(critics), rating_level,
+			SECONDARY_FONT_SIZE, not text_frame.text,
+		)
+	if movie_data.rt_audience_score is not None:
+		audience_text = f"Audience: {audience_mark} {movie_data.rt_audience_score}%"
+		add_text_paragraph(
+			text_frame, audience_text, rating_level, SECONDARY_FONT_SIZE, not text_frame.text,
+		)
+	details = []
+	if movie_data.genres:
+		details.append(f"Genre: {', '.join(movie_data.genres)}")
+	if movie_data.directors:
+		details.append(f"Director: {', '.join(movie_data.directors)}")
+	if movie_data.runtime_minutes is not None:
+		details.append(f"Run time: {movie_data.runtime_minutes} min")
+	if movie_data.original_language:
+		details.append(f"Original language: {movie_data.original_language}")
+	if movie_data.rt_consensus.strip():
+		details.append(f"Review Summary: {movie_data.rt_consensus}")
+	for detail in details:
+		add_text_paragraph(
+			text_frame, detail, 0, PRIMARY_FONT_SIZE, not text_frame.text,
+		)
+	if not text_frame.text:
+		slide.shapes._spTree.remove(outline_shape._element)
 
 
 #============================================
-def place_poster(slide: object, movie_data: slide_maker.moviedata.MovieData) -> object:
+def place_poster(slide: object, movie_data: slide_maker.moviedata.MovieData) -> object | None:
 	"""Replace the poster anchor with an aspect-preserving centered picture."""
 	poster_anchor = shape_by_name(slide, TEMPLATE_POSTER_NAME)
 	anchor_left = poster_anchor.left
@@ -251,6 +280,11 @@ def place_poster(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 	anchor_width = poster_anchor.width
 	anchor_height = poster_anchor.height
 	slide.shapes._spTree.remove(poster_anchor._element)
+	if movie_data.poster_path is None:
+		for shape in slide.shapes:
+			if shape.name == TEMPLATE_OUTLINE_NAME:
+				shape.width = anchor_left + anchor_width - shape.left
+		return None
 
 	with PIL.Image.open(movie_data.poster_path) as poster_image:
 		poster_width, poster_height = poster_image.size
@@ -282,6 +316,7 @@ def place_poster(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 def append_movie_slide(presentation: object, movie_data: slide_maker.moviedata.MovieData) -> object:
 	"""Append one visible movie slide using the presentation's template slide."""
 	slide_maker.moviedata.validate_movie_data(movie_data)
+	normalize_template_fonts(presentation)
 	presentation.slide_width = PAGE_WIDTH
 	presentation.slide_height = PAGE_HEIGHT
 	require(len(presentation.slides) >= 1, "Presentation has no movie template slide")

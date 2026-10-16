@@ -2,6 +2,7 @@
 
 # Standard Library
 import re
+import hashlib
 import pathlib
 import tempfile
 import dataclasses
@@ -50,6 +51,14 @@ class ProviderBundle:
 		[str, str, str, int, list[str]],
 		slide_maker.metacritic_scraper.MetacriticRating,
 	]
+	resolve_tmdb_movie: collections.abc.Callable[
+		[
+			slide_maker.movie_input.MovieInput,
+			collections.abc.Callable[[str], str],
+			collections.abc.Callable[[str], None],
+		],
+		slide_maker.movie_resolver.ResolvedTmdbMovie,
+	] | None = None
 
 
 LIVE_PROVIDERS = ProviderBundle(
@@ -58,11 +67,12 @@ LIVE_PROVIDERS = ProviderBundle(
 	fetch_imdb_rating=slide_maker.imdb_ratings.fetch_imdb_ratings,
 	fetch_rt_rating=slide_maker.rt_scraper.fetch_rt_rating,
 	fetch_metacritic_rating=slide_maker.metacritic_scraper.fetch_metacritic_rating,
+	resolve_tmdb_movie=slide_maker.movie_resolver.resolve_tmdb_movie,
 )
 
 
 class MoviePipelineError(RuntimeError):
-	"""Report an incomplete or inconsistent source before presentation creation."""
+	"""Report an unrecoverable movie identity or presentation problem."""
 
 
 #============================================
@@ -80,71 +90,6 @@ def _source_error(
 
 
 #============================================
-def _require_source(
-	condition: bool,
-	source: str,
-	movie: slide_maker.tmdb_client.TmdbMovie,
-	attempted: str,
-	problem: str,
-) -> None:
-	"""Raise a contextual pipeline error when a provider result is invalid."""
-	if not condition:
-		raise _source_error(source, movie, attempted, problem)
-
-
-#============================================
-def _validate_tmdb_movie(
-	movie: slide_maker.tmdb_client.TmdbMovie,
-	attempted: str,
-) -> None:
-	"""Validate all TMDB-owned fields before querying dependent providers."""
-	identity = f"TMDB id {movie.tmdb_id}"
-	if not movie.title.strip():
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: title was missing")
-	if movie.year <= 0:
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: year was invalid")
-	if not movie.plot.strip():
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: plot was missing")
-	if not movie.genres or any(not genre.strip() for genre in movie.genres):
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: genres were missing")
-	if movie.runtime_minutes <= 0:
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: runtime was invalid")
-	if not movie.directors or any(not director.strip() for director in movie.directors):
-		message = f"TMDB source error for {identity} at {attempted}: directors were missing"
-		raise MoviePipelineError(message)
-	if movie.tmdb_id <= 0 or re.fullmatch(r"tt[0-9]{7,10}", movie.imdb_id) is None:
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: ids were invalid")
-	if not pathlib.Path(movie.poster_path).is_file():
-		raise MoviePipelineError(f"TMDB source error for {identity} at {attempted}: poster was missing")
-
-
-#============================================
-def _validate_imdb_rating(
-	result: slide_maker.imdb_ratings.ImdbRating,
-	movie: slide_maker.tmdb_client.TmdbMovie,
-) -> None:
-	"""Validate IMDb identity, rating, and vote values against TMDB."""
-	attempted = f"https://www.imdb.com/title/{movie.imdb_id}/"
-	_require_source(result.imdb_id == movie.imdb_id, "IMDb", movie, attempted, "id did not match TMDB")
-	_require_source(
-		bool(result.title.strip()),
-		"IMDb",
-		movie,
-		attempted,
-		"title was missing",
-	)
-	_require_source(
-		result.year > 0,
-		"IMDb",
-		movie,
-		attempted,
-		"year was invalid",
-	)
-	_require_source(0.0 <= result.imdb_rating <= 10.0, "IMDb", movie, attempted, "rating was invalid")
-	_require_source(result.imdb_votes > 0, "IMDb", movie, attempted, "vote count was missing")
-
-
-#============================================
 def _slug_base(title: str, separator: str) -> str:
 	"""Build one provider-style ASCII title slug."""
 	normalized = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
@@ -153,7 +98,7 @@ def _slug_base(title: str, separator: str) -> str:
 
 
 #============================================
-def source_slug_candidates(title: str, year: int, separator: str) -> tuple[str, ...]:
+def source_slug_candidates(title: str, year: int | None, separator: str) -> tuple[str, ...]:
 	"""Return bounded title and title-year candidates for one provider.
 
 	Args:
@@ -164,21 +109,21 @@ def source_slug_candidates(title: str, year: int, separator: str) -> tuple[str, 
 	Returns:
 		The normalized title slug followed by its title-and-year form.
 
-	Raises:
-		ValueError: The title cannot produce a nonempty ASCII slug.
 	"""
 	base_slug = _slug_base(title, separator)
 	if not base_slug:
-		raise ValueError(f"Movie title cannot produce a source slug: {title!r}")
-	year_slug = f"{base_slug}{separator}{year}"
-	candidates = (base_slug, year_slug)
+		return ()
+	candidates = (base_slug,)
+	if year is not None:
+		year_slug = f"{base_slug}{separator}{year}"
+		candidates += (year_slug,)
 	return candidates
 
 
 #============================================
 def _source_slug_candidates_for_titles(
 	titles: list[str],
-	year: int,
+	year: int | None,
 	separator: str,
 ) -> tuple[str, ...]:
 	"""Return unique provider slugs for multiple trusted movie titles."""
@@ -192,12 +137,18 @@ def _source_slug_candidates_for_titles(
 
 
 #============================================
-def _rt_slug_candidates(title: str, year: int) -> tuple[str, ...]:
+def _rt_slug_candidates(title: str, year: int | None) -> tuple[str, ...]:
 	"""Return bounded RT candidates including its legacy joined-hyphen style."""
 	standard_candidates = source_slug_candidates(title, year, "_")
+	if not standard_candidates:
+		return ()
 	joined_slug = _slug_base(title.replace("-", ""), "_")
 	candidates = list(standard_candidates)
-	joined_candidates = (joined_slug, f"{joined_slug}_{year}")
+	if not joined_slug:
+		joined_slug = standard_candidates[0]
+	joined_candidates = (joined_slug,)
+	if year is not None:
+		joined_candidates += (f"{joined_slug}_{year}",)
 	for candidate in joined_candidates:
 		if candidate not in candidates:
 			candidates.append(candidate)
@@ -206,7 +157,7 @@ def _rt_slug_candidates(title: str, year: int) -> tuple[str, ...]:
 
 
 #============================================
-def product_slug(title: str, year: int) -> str:
+def product_slug(title: str, year: int | None) -> str:
 	"""Return the stable title-and-year product filename stem.
 
 	Args:
@@ -216,13 +167,14 @@ def product_slug(title: str, year: int) -> str:
 	Returns:
 		A lowercase underscore-separated ASCII filename stem.
 
-	Raises:
-		ValueError: The title cannot produce a nonempty ASCII slug.
 	"""
 	base_slug = _slug_base(title, "_")
 	if not base_slug:
-		raise ValueError(f"Movie title cannot produce a product slug: {title!r}")
-	slug = f"{base_slug}_{year}"
+		digest = hashlib.sha256(title.strip().encode("utf-8")).hexdigest()[:12]
+		base_slug = f"movie_{digest}"
+	slug = base_slug
+	if year is not None:
+		slug += f"_{year}"
 	return slug
 
 
@@ -248,50 +200,6 @@ def _fetch_rt(
 		except slide_maker.rt_scraper.RtSourceError as error:
 			last_error = error
 			continue
-		_require_source(
-			result.imdb_id == movie.imdb_id,
-			"Rotten Tomatoes",
-			movie,
-			attempted_url,
-			"id did not match TMDB",
-		)
-		matches = slide_maker.movie_identity.count_identity_matches(
-			result.title,
-			result.year,
-			result.directors,
-			movie.title,
-			movie.year,
-			movie.directors,
-		)
-		_require_source(
-			matches >= 2,
-			"Rotten Tomatoes",
-			movie,
-			attempted_url,
-			"candidate failed two identity attributes",
-		)
-		_require_source(
-			0 <= result.rt_tomatometer <= 100,
-			"Rotten Tomatoes",
-			movie,
-			attempted_url,
-			"Tomatometer was invalid",
-		)
-		_require_source(
-			result.rt_audience_score is None
-			or 0 <= result.rt_audience_score <= 100,
-			"Rotten Tomatoes",
-			movie,
-			attempted_url,
-			"Popcornmeter was invalid",
-		)
-		_require_source(
-			result.rt_state in ("fresh", "rotten"),
-			"Rotten Tomatoes",
-			movie,
-			attempted_url,
-			"freshness state was invalid",
-		)
 		return result
 	attempted = ", ".join(attempted_urls)
 	problem = f"bounded candidates failed; last source diagnostic: {last_error}"
@@ -322,42 +230,6 @@ def _fetch_metacritic(
 		except slide_maker.metacritic_scraper.MetacriticSourceError as error:
 			last_error = error
 			continue
-		_require_source(
-			result.imdb_id == movie.imdb_id,
-			"Metacritic",
-			movie,
-			attempted_url,
-			"id did not match TMDB",
-		)
-		matches = slide_maker.movie_identity.count_identity_matches(
-			result.title,
-			result.year,
-			result.directors,
-			movie.title,
-			movie.year,
-			movie.directors,
-		)
-		_require_source(
-			matches >= 2,
-			"Metacritic",
-			movie,
-			attempted_url,
-			"candidate failed two identity attributes",
-		)
-		_require_source(
-			0 <= result.metascore <= 100,
-			"Metacritic",
-			movie,
-			attempted_url,
-			"Metascore was missing or invalid",
-		)
-		_require_source(
-			result.metascore_band in ("low", "middle", "high"),
-			"Metacritic",
-			movie,
-			attempted_url,
-			"Metascore band was invalid",
-		)
 		return result
 	attempted = ", ".join(attempted_urls)
 	problem = f"bounded candidates failed; last source diagnostic: {last_error}"
@@ -367,32 +239,193 @@ def _fetch_metacritic(
 #============================================
 def _assemble_movie_data(
 	tmdb_movie: slide_maker.tmdb_client.TmdbMovie,
-	imdb_rating: slide_maker.imdb_ratings.ImdbRating,
-	rt_rating: slide_maker.rt_scraper.RtRating,
+	imdb_rating: slide_maker.imdb_ratings.ImdbRating | None,
+	rt_rating: slide_maker.rt_scraper.RtRating | None,
 	metacritic_rating: slide_maker.metacritic_scraper.MetacriticRating | None,
+	title: str | None = None,
+	year: int | None = None,
 ) -> slide_maker.moviedata.MovieData:
-	"""Assemble and validate the provider-to-builder contract."""
+	"""Assemble the independent provider values into one adaptable contract."""
+	# ASVS 2.2.1: validate supplied values independently at the provider boundary.
+	resolved_title = title if title is not None else tmdb_movie.title
+	resolved_year = year if year is not None else tmdb_movie.year
+	if type(resolved_year) is not int or resolved_year <= 0:
+		resolved_year = None
+	rt_score = rt_rating.rt_tomatometer if rt_rating is not None else None
+	if type(rt_score) is not int or not 0 <= rt_score <= 100:
+		rt_score = None
+	rt_state = rt_rating.rt_state if rt_score is not None and rt_rating is not None else None
+	if rt_score is not None:
+		expected_rt_state = slide_maker.emoji_marks.rt_state_for_score(rt_score)
+		if rt_state is not None and rt_state != expected_rt_state:
+			rt_score = None
+			rt_state = None
+	rt_audience = rt_rating.rt_audience_score if rt_rating is not None else None
+	if type(rt_audience) is not int or not 0 <= rt_audience <= 100:
+		rt_audience = None
+	metascore = metacritic_rating.metascore if metacritic_rating is not None else None
+	if type(metascore) is not int or not 0 <= metascore <= 100:
+		metascore = None
+	metascore_band = metacritic_rating.metascore_band if metascore is not None and metacritic_rating is not None else None
+	if metascore is not None:
+		expected_band = slide_maker.emoji_marks.metascore_band_for_score(metascore)
+		if metascore_band is not None and metascore_band != expected_band:
+			metascore = None
+			metascore_band = None
+	genres = [genre for genre in tmdb_movie.genres if isinstance(genre, str) and genre.strip()]
+	directors = [director for director in tmdb_movie.directors if isinstance(director, str) and director.strip()]
+	runtime = tmdb_movie.runtime_minutes
+	if type(runtime) is not int or runtime <= 0:
+		runtime = None
+	poster_path = tmdb_movie.poster_path
+	if poster_path is not None and not pathlib.Path(poster_path).is_file():
+		poster_path = None
+	tmdb_id = tmdb_movie.tmdb_id
+	if type(tmdb_id) is not int or tmdb_id <= 0:
+		tmdb_id = None
+	imdb_id = tmdb_movie.imdb_id
+	if not isinstance(imdb_id, str) or re.fullmatch(r"tt[0-9]{7,10}", imdb_id) is None:
+		imdb_id = None
+	plot = tmdb_movie.plot if isinstance(tmdb_movie.plot, str) else ""
+	imdb_score = imdb_rating.imdb_rating if imdb_rating is not None else None
+	if type(imdb_score) not in (int, float) or not 0.0 <= imdb_score <= 10.0:
+		imdb_score = None
+	imdb_votes = imdb_rating.imdb_votes if imdb_rating is not None else None
+	if type(imdb_votes) is not int or imdb_votes < 0:
+		imdb_votes = None
+	consensus = rt_rating.rt_consensus if rt_rating is not None else ""
+	if not isinstance(consensus, str):
+		consensus = ""
+	original_language = tmdb_movie.original_language
+	if not isinstance(original_language, str) or not original_language.strip():
+		original_language = None
 	movie_data = slide_maker.moviedata.MovieData(
-		title=tmdb_movie.title,
-		year=tmdb_movie.year,
-		plot=tmdb_movie.plot,
-		genres=tmdb_movie.genres,
-		runtime_minutes=tmdb_movie.runtime_minutes,
-		directors=tmdb_movie.directors,
-		tmdb_id=tmdb_movie.tmdb_id,
-		imdb_id=tmdb_movie.imdb_id,
-		imdb_rating=imdb_rating.imdb_rating,
-		imdb_votes=imdb_rating.imdb_votes,
-		rt_tomatometer=rt_rating.rt_tomatometer,
-		rt_audience_score=rt_rating.rt_audience_score,
-		rt_state=rt_rating.rt_state,
-		rt_consensus=rt_rating.rt_consensus,
-		metascore=metacritic_rating.metascore if metacritic_rating is not None else None,
-		metascore_band=metacritic_rating.metascore_band if metacritic_rating is not None else None,
-		poster_path=tmdb_movie.poster_path,
+		title=resolved_title,
+		year=resolved_year,
+		plot=plot,
+		genres=genres,
+		runtime_minutes=runtime,
+		directors=directors,
+		tmdb_id=tmdb_id,
+		imdb_id=imdb_id,
+		imdb_rating=imdb_score,
+		imdb_votes=imdb_votes,
+		rt_tomatometer=rt_score,
+		rt_audience_score=rt_audience,
+		rt_state=rt_state,
+		rt_consensus=consensus,
+		metascore=metascore,
+		metascore_band=metascore_band,
+		poster_path=poster_path,
+		original_language=original_language,
 	)
 	slide_maker.moviedata.validate_movie_data(movie_data)
 	return movie_data
+
+
+#============================================
+def _report_source_problem(
+	write_line: collections.abc.Callable[[str], None],
+	source: str,
+	problem: BaseException | str,
+) -> None:
+	"""Report a concise source omission without exposing provider internals."""
+	message = str(problem).splitlines()[0]
+	write_line(f"{source} metadata omitted: {message}")
+
+
+#============================================
+def _requested_identity(
+	movie_input: slide_maker.movie_input.MovieInput,
+	read_choice: collections.abc.Callable[[str], str],
+) -> tuple[str, int | None]:
+	"""Return a slide title without inventing a title for identifier-only input."""
+	if movie_input.kind == slide_maker.movie_input.InputKind.TITLE:
+		return movie_input.value, movie_input.year
+	title = read_choice("TMDB details are unavailable. Enter the movie title: ").strip()
+	if not title:
+		raise MoviePipelineError("Identifier-only input needs a movie title when TMDB details fail")
+	return title, None
+
+
+#============================================
+def _matches_requested_identity(
+	movie: slide_maker.tmdb_client.TmdbMovie,
+	requested_title: str,
+	requested_year: int | None,
+) -> bool:
+	"""Return whether TMDB details agree with a title request when comparable."""
+	if slide_maker.movie_identity.normalize_identity_text(movie.title) != (
+		slide_maker.movie_identity.normalize_identity_text(requested_title)
+	):
+		return False
+	if requested_year is not None and movie.year is not None and movie.year != requested_year:
+		return False
+	return True
+
+
+#============================================
+def _sparse_movie(title: str, year: int | None) -> slide_maker.moviedata.MovieData:
+	"""Build a title-only contract after the source identity cannot be enriched."""
+	movie_data = slide_maker.moviedata.MovieData(title=title, year=year)
+	slide_maker.moviedata.validate_movie_data(movie_data)
+	return movie_data
+
+
+#============================================
+def _fallback_identity(
+	movie_input: slide_maker.movie_input.MovieInput,
+	selected_identity: slide_maker.movie_resolver.ResolvedTmdbMovie | None,
+	read_choice: collections.abc.Callable[[str], str],
+) -> tuple[str, int | None]:
+	"""Return the trusted selection or recover a title for an identifier input."""
+	if selected_identity is not None and selected_identity.title is not None:
+		return selected_identity.title, selected_identity.year
+	return _requested_identity(movie_input, read_choice)
+
+
+#============================================
+def _valid_imdb_rating(
+	result: slide_maker.imdb_ratings.ImdbRating,
+	movie: slide_maker.tmdb_client.TmdbMovie,
+) -> bool:
+	"""Accept IMDb values only when its identifier positively agrees with TMDB."""
+	return movie.imdb_id is not None and result.imdb_id == movie.imdb_id
+
+
+#============================================
+def _provider_identity_matches(
+	result: object,
+	movie: slide_maker.tmdb_client.TmdbMovie,
+	source: str,
+	write_line: collections.abc.Callable[[str], None],
+) -> bool:
+	"""Accept a scraped record only after two identity attributes agree."""
+	if not movie.title:
+		_report_source_problem(write_line, source, "rating record did not match")
+		return False
+	result_title = getattr(result, "title")
+	result_year = getattr(result, "year")
+	result_directors = getattr(result, "directors")
+	if (
+		not isinstance(result_title, str)
+		or not isinstance(result_directors, list)
+		or any(not isinstance(director, str) for director in result_directors)
+	):
+		_report_source_problem(write_line, source, "rating record did not match")
+		return False
+	matches = slide_maker.movie_identity.count_identity_matches(
+		result_title,
+		result_year,
+		result_directors,
+		movie.title,
+		movie.year,
+		movie.directors,
+	)
+	if matches >= 2:
+		return True
+	_report_source_problem(write_line, source, "rating record did not match")
+	return False
 
 
 #============================================
@@ -403,7 +436,7 @@ def resolve_movie_data(
 	read_choice: collections.abc.Callable[[str], str] = input,
 	write_line: collections.abc.Callable[[str], None] = print,
 ) -> slide_maker.moviedata.MovieData:
-	"""Resolve all providers and return validated data with a caller-owned poster.
+	"""Resolve available providers and return adaptable data with a caller-owned poster.
 
 	Args:
 		raw_input: Movie title, provider id, or supported provider URL.
@@ -413,33 +446,118 @@ def resolve_movie_data(
 		write_line: Callback that receives prompts and progress messages.
 
 	Returns:
-		A complete validated movie-data contract with a local poster path.
+		A validated movie-data contract containing every usable source value.
 
 	Raises:
 		ValueError: The input or a provider argument is malformed.
-		MoviePipelineError: A provider result conflicts with the resolved identity.
-		RuntimeError: A resolver or provider cannot return its required data.
+		MoviePipelineError: Identifier-only input cannot recover a display title.
+		RuntimeError: A resolver or provider has an unexpected programming failure.
 
 	Note:
-		The function may prompt through ``read_choice``, reports through
-		``write_line``, performs provider requests, and writes the poster into
-		``poster_directory``.
+		The function may prompt through ``read_choice`` when identifier-only
+		input cannot recover a title. It reports omitted source data through
+		``write_line`` and writes an available poster into ``poster_directory``.
 	"""
 	movie_input = slide_maker.movie_input.classify_movie_input(raw_input)
+	requested_title = movie_input.value if movie_input.kind == slide_maker.movie_input.InputKind.TITLE else None
+	requested_year = movie_input.year if requested_title is not None else None
 	write_line("Resolving movie identity with TMDB...")
-	tmdb_id = providers.resolve_tmdb_id(movie_input, read_choice, write_line)
-	tmdb_movie = providers.fetch_tmdb_movie(tmdb_id, poster_directory)
-	_validate_tmdb_movie(tmdb_movie, f"TMDB id {tmdb_id}")
-	write_line(f"Resolved {tmdb_movie.title} ({tmdb_movie.year}); fetching ratings...")
-	imdb_rating = providers.fetch_imdb_rating(tmdb_movie.imdb_id)
-	_validate_imdb_rating(imdb_rating, tmdb_movie)
-	rt_rating = _fetch_rt(tmdb_movie, providers)
-	metacritic_rating = _fetch_metacritic(tmdb_movie, imdb_rating.title, providers)
+	selected_identity = None
+	try:
+		if providers.resolve_tmdb_movie is None:
+			tmdb_id = providers.resolve_tmdb_id(movie_input, read_choice, write_line)
+			selected_identity = None
+		else:
+			selected_identity = providers.resolve_tmdb_movie(movie_input, read_choice, write_line)
+			tmdb_id = selected_identity.tmdb_id
+		tmdb_movie = providers.fetch_tmdb_movie(tmdb_id, poster_directory)
+	except (
+		slide_maker.movie_resolver.MovieResolutionError,
+		slide_maker.tmdb_client.TmdbSourceError,
+	) as error:
+		_report_source_problem(write_line, "TMDB", error)
+		requested_title, requested_year = _fallback_identity(
+			movie_input,
+			selected_identity,
+			read_choice,
+		)
+		return _sparse_movie(requested_title, requested_year)
+	if tmdb_movie.tmdb_id != tmdb_id:
+		_report_source_problem(write_line, "TMDB", "details returned a different TMDB id")
+		requested_title, requested_year = _fallback_identity(
+			movie_input,
+			selected_identity,
+			read_choice,
+		)
+		return _sparse_movie(requested_title, requested_year)
+
+	if movie_input.kind == slide_maker.movie_input.InputKind.TITLE:
+		if requested_title is None:
+			raise MoviePipelineError("Title input was missing its requested title")
+		if selected_identity is not None and selected_identity.title is not None:
+			# The resolved TMDB id anchors the selected identity.  Its display label
+			# may be a title alias and its release year may be absent from details.
+			requested_title = selected_identity.title
+			requested_year = selected_identity.year
+		elif not _matches_requested_identity(tmdb_movie, requested_title, requested_year):
+			_report_source_problem(write_line, "TMDB", "returned a different movie")
+			return _sparse_movie(requested_title, requested_year)
+	else:
+		requested_title = tmdb_movie.title.strip()
+		requested_year = tmdb_movie.year
+	if not requested_title:
+		raise MoviePipelineError("TMDB details did not provide a usable movie title")
+	if tmdb_movie.poster_path is None:
+		poster_problem = getattr(tmdb_movie, "poster_diagnostic", None)
+		if poster_problem is None:
+			poster_problem = "no usable poster was available"
+		_report_source_problem(write_line, "TMDB poster", poster_problem)
+
+	# TMDB owns the base metadata.  Missing optional fields remain absent rather
+	# than preventing independent ratings from reaching a student-facing slide.
+	write_line(f"Resolved {requested_title}; fetching available ratings...")
+	imdb_rating = None
+	if tmdb_movie.imdb_id is not None:
+		try:
+			candidate = providers.fetch_imdb_rating(tmdb_movie.imdb_id)
+		except slide_maker.imdb_ratings.ImdbSourceError as error:
+			_report_source_problem(write_line, "IMDb", error)
+		else:
+			if _valid_imdb_rating(candidate, tmdb_movie):
+				imdb_rating = candidate
+			else:
+				_report_source_problem(write_line, "IMDb", "rating record did not match the movie")
+
+	rt_rating = None
+	if tmdb_movie.title:
+		try:
+			candidate = _fetch_rt(tmdb_movie, providers)
+		except (slide_maker.rt_scraper.RtSourceError, MoviePipelineError) as error:
+			_report_source_problem(write_line, "Rotten Tomatoes", error)
+		else:
+			if _provider_identity_matches(candidate, tmdb_movie, "Rotten Tomatoes", write_line):
+				rt_rating = candidate
+
+	metacritic_rating = None
+	if tmdb_movie.title:
+		imdb_title = tmdb_movie.title
+		if imdb_rating is not None and isinstance(imdb_rating.title, str) and imdb_rating.title.strip():
+			imdb_title = imdb_rating.title
+		try:
+			candidate = _fetch_metacritic(tmdb_movie, imdb_title, providers)
+		except (slide_maker.metacritic_scraper.MetacriticSourceError, MoviePipelineError) as error:
+			_report_source_problem(write_line, "Metacritic", error)
+		else:
+			if _provider_identity_matches(candidate, tmdb_movie, "Metacritic", write_line):
+				metacritic_rating = candidate
+
 	movie_data = _assemble_movie_data(
 		tmdb_movie,
 		imdb_rating,
 		rt_rating,
 		metacritic_rating,
+		requested_title,
+		requested_year,
 	)
 	return movie_data
 
@@ -484,7 +602,7 @@ def generate_movie_slide(
 			read_choice,
 			write_line,
 		)
-		write_line("All provider data validated; building the presentation...")
+		write_line("Available movie data assembled; building the presentation...")
 		output_dir = pathlib.Path(output_directory)
 		output_dir.mkdir(parents=True, exist_ok=True)
 		slug = product_slug(movie_data.title, movie_data.year)
@@ -499,5 +617,5 @@ def generate_movie_slide(
 			scratch_path,
 			output_path,
 		)
-	write_line(f"Created validated movie slide: {product_path}")
+	write_line(f"Created movie slide: {product_path}")
 	return product_path

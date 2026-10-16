@@ -25,13 +25,13 @@ class MetacriticSourceError(RuntimeError):
 class MetacriticRating:
 	"""Identity-bearing Metacritic values aligned with ``MovieData``."""
 
-	imdb_id: str
-	title: str
-	year: int
-	directors: list[str]
-	metascore: int
-	metascore_band: str
-	canonical_url: str
+	imdb_id: str | None = None
+	title: str | None = None
+	year: int | None = None
+	directors: list[str] = dataclasses.field(default_factory=list)
+	metascore: int | None = None
+	metascore_band: str | None = None
+	canonical_url: str | None = None
 
 
 class MetacriticPageParser(html.parser.HTMLParser):
@@ -114,14 +114,8 @@ def _json_ld_records(
 	for body in page.scripts:
 		try:
 			parsed = json.loads(body)
-		except json.JSONDecodeError as error:
-			raise _source_error(
-				title,
-				year,
-				imdb_id,
-				attempted_url,
-				"movie JSON-LD was invalid",
-			) from error
+		except json.JSONDecodeError:
+			continue
 		items = parsed if isinstance(parsed, list) else [parsed]
 		for item in items:
 			if isinstance(item, dict):
@@ -335,10 +329,10 @@ def _metascore(
 
 #============================================
 def fetch_metacritic_rating(
-	imdb_id: str,
+	imdb_id: str | None,
 	metacritic_slug: str,
 	expected_title: str,
-	expected_year: int,
+	expected_year: int | None,
 	expected_directors: list[str],
 ) -> MetacriticRating:
 	"""Fetch an identity-checked Metacritic result.
@@ -357,17 +351,26 @@ def fetch_metacritic_rating(
 		ValueError: An input identity is malformed or incomplete.
 		MetacriticSourceError: The response fails identity or Metascore requirements.
 	"""
-	normalized_imdb_id = imdb_id.strip().lower()
-	if IMDB_ID_PATTERN.fullmatch(normalized_imdb_id) is None:
+	normalized_imdb_id = imdb_id.strip().lower() if isinstance(imdb_id, str) else None
+	if normalized_imdb_id is not None and IMDB_ID_PATTERN.fullmatch(normalized_imdb_id) is None:
 		raise ValueError(f"Invalid IMDb title id: {imdb_id!r}")
 	clean_slug = metacritic_slug.strip().strip("/")
 	if not clean_slug:
 		raise ValueError("Metacritic movie slug must be nonempty")
-	if not expected_title.strip() or expected_year <= 0 or not expected_directors:
-		raise ValueError("Metacritic expected identity must be complete")
+	if not expected_title.strip():
+		raise ValueError("Metacritic expected title must be nonempty")
 
 	url = f"{METACRITIC_MOVIE_ROOT}/{clean_slug}/"
-	response = slide_maker.http_client.fetch_url(url)
+	try:
+		response = slide_maker.http_client.fetch_url(url)
+	except slide_maker.http_client.HttpSourceError as error:
+		raise _source_error(
+			expected_title,
+			expected_year if expected_year is not None else 0,
+			normalized_imdb_id if normalized_imdb_id is not None else "unknown",
+			url,
+			"network request failed",
+		) from error
 	attempted_url = str(response.url)
 	_require(
 		response.status_code == 200,
@@ -386,65 +389,22 @@ def fetch_metacritic_rating(
 		normalized_imdb_id,
 		attempted_url,
 	)
-	title_value = _required_value(
-		record,
-		"name",
-		"name",
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
-	date_value = _required_value(
-		record,
-		"datePublished",
-		"datePublished",
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
-	director_value = _required_value(
-		record,
-		"director",
-		"director",
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
-	title = _required_text(
-		title_value,
-		"name",
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
-	date_text = _required_text(
-		date_value,
-		"datePublished",
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
-	_require(
-		bool(re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_text)),
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-		"datePublished was malformed",
-	)
-	year = int(date_text[:4])
-	directors = _director_names(
-		director_value,
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
+	title_value = record.get("name")
+	title = title_value.strip() if isinstance(title_value, str) and title_value.strip() else None
+	_require(title is not None, expected_title, expected_year, normalized_imdb_id, attempted_url, "title was missing")
+	date_value = record.get("datePublished")
+	year = None
+	if isinstance(date_value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value):
+		year = int(date_value[:4])
+	director_value = record.get("director")
+	directors = []
+	if director_value is not None:
+		people = director_value if isinstance(director_value, list) else [director_value]
+		for person in people:
+			if isinstance(person, dict):
+				name = person.get("name")
+				if isinstance(name, str) and name.strip():
+					directors.append(name.strip())
 	matches = slide_maker.movie_identity.count_identity_matches(
 		title,
 		year,
@@ -461,27 +421,34 @@ def fetch_metacritic_rating(
 		attempted_url,
 		"candidate failed two identity attributes",
 	)
-	canonical_url = _canonical_url(
-		page,
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
-	metascore = _metascore(
-		record,
-		expected_title,
-		expected_year,
-		normalized_imdb_id,
-		attempted_url,
-	)
+	canonical_url = page.canonical_url
+	if canonical_url is not None:
+		parsed_url = urllib.parse.urlparse(canonical_url)
+		if not (
+			parsed_url.scheme == "https"
+			and parsed_url.netloc == "www.metacritic.com"
+			and parsed_url.path.startswith("/movie/")
+		):
+			canonical_url = None
+	metascore = None
+	aggregate_rating = record.get("aggregateRating")
+	if isinstance(aggregate_rating, dict):
+		rating_value = aggregate_rating.get("ratingValue")
+		if type(rating_value) is int and 0 <= rating_value <= 100:
+			metascore = rating_value
+		elif isinstance(rating_value, str) and rating_value.isdigit():
+			candidate_score = int(rating_value)
+			if 0 <= candidate_score <= 100:
+				metascore = candidate_score
 	result = MetacriticRating(
 		imdb_id=normalized_imdb_id,
 		title=title,
 		year=year,
 		directors=directors,
 		metascore=metascore,
-		metascore_band=slide_maker.emoji_marks.metascore_band_for_score(metascore),
+		metascore_band=slide_maker.emoji_marks.metascore_band_for_score(metascore)
+		if metascore is not None
+		else None,
 		canonical_url=canonical_url,
 	)
 	return result

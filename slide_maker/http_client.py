@@ -12,6 +12,10 @@ REQUEST_TIMEOUT_SECONDS = 30
 RETRY_STATUS_CODES = (403, 429)
 
 
+class HttpSourceError(RuntimeError):
+	"""Report a network failure without exposing request credentials."""
+
+
 #============================================
 def request_headers(extra_headers: dict[str, str] | None = None) -> dict[str, str]:
 	"""Build the common browser headers with provider-specific additions.
@@ -48,13 +52,19 @@ def request_once(
 		The provider response.
 	"""
 	time.sleep(random.random())
-	response = curl_cffi.requests.get(
-		url,
-		impersonate="chrome",
-		headers=headers,
-		params=params,
-		timeout=REQUEST_TIMEOUT_SECONDS,
-	)
+	try:
+		response = curl_cffi.requests.get(
+			url,
+			impersonate="chrome",
+			headers=headers,
+			params=params,
+			timeout=REQUEST_TIMEOUT_SECONDS,
+		)
+	except (
+		curl_cffi.requests.errors.CurlError,
+		curl_cffi.requests.errors.RequestsError,
+	) as error:
+		raise HttpSourceError(f"HTTP request failed for {url}") from error
 	return response
 
 

@@ -1,5 +1,57 @@
 # Changelog
 
+## 2026-10-16
+
+### Behavior or Interface Changes
+
+- Build movie slides from available information without a metadata-completeness threshold.
+  Preserve independent ratings, vote counts, reviews, and descriptive fields; report source
+  omissions while retaining the requested or selected movie.
+- Display exactly one original language using its English name, without inferring subtitles.
+- Replace OpenDyslexic with Atkinson Hyperlegible Next in generated text, the runtime template,
+  and template extraction output. Omit absent rows and use the poster area for text when needed.
+- Validate converted ODP content against the actual included source text and roles, supporting
+  title-only and poster-free slides while detecting conversion loss.
+
+### Fixes and Maintenance
+
+- Preserve selected movie identity when enrichment fails, reject mismatched returned TMDB ids,
+  and count only present identity attributes when matching scraped provider pages.
+- Document the design in HUMAN_GUIDANCE.md and refresh installation, usage, and the Her screenshot.
+
+### Developer Tests and Notes
+
+- Full pytest suite passed: 689 tests. Added focused protection for original-language selection,
+  independent IMDb values, and mismatched TMDB detail responses.
+- Provider and pipeline correction checks passed with deterministic injected responses.
+- Built, converted, and visually inspected seven complete/sparse cases, including no poster,
+  title-only, non-English language, zero scores, missing votes, and long text. PDF inspection
+  confirmed embedded Atkinson Hyperlegible Next.
+- Injected single-movie and two-page batch checks passed through LibreOffice. Normal and long-text
+  visual acceptance passed. Fresh ODP/PNG examples are under output_smoke/.
+- LibreOffice checks needed execution outside the sandbox for macOS LaunchServices.
+- After the TMDB credential became available, live single-movie orchestration passed for Her.
+  The default live batch passed with five accepted movies and zero rejected movies; all five
+  rendered pages were visually inspected. A Ghost Waits retained its available ratings while
+  omitting its absent Metascore and review summary.
+- Refreshed README onboarding and navigation with readme-docs, then replaced the illustrative
+  image with current live Her and A Ghost Waits renders using screenshot-docs. Both managed PNGs
+  are 1654 by 1034 pixels and below 1 MB; no stale or unreferenced managed assets remain.
+  The capture backend is the existing LibreOffice/Poppler batch renderer. Recapture commands
+  are in [DEVEL_README.md](../devel/DEVEL_README.md).
+- README rubric review: 78/100 before, 99/100 after. Purpose 11->15 (teaching outcomes);
+  identity 11->15 (adaptive slides); proof 15->20 (live full and partial examples);
+  first success 11->15 (explicit movie id); orientation 10->10 (inputs and providers);
+  navigation 8->10 (setup first); adoption 4->4 (license attribution gap);
+  presentation 8->10 (current accessible screenshots). Strongest gain: live visual proof.
+- README quick-start CLI and batch CLI both passed live. Documentation checks passed 111 tests;
+  the Git-tracked-only link check flags the new, unstaged A Ghost Waits PNG. Direct working-tree
+  link validation passed for all three edited documents, and managed-block idempotence passed.
+  The tracked-link gate remains pending inclusion of the new screenshot in Git; nothing was staged.
+- Remaining documentation follow-up: the maintainer should replace the existing Author Name
+  placeholder in [LICENSE.MIT.md](../LICENSE.MIT.md) with the confirmed copyright holder.
+  Verify the attribution with the owner; the README's MIT license label matches the license text.
+
 ## 2026-10-15
 
 ### Fixes and Maintenance

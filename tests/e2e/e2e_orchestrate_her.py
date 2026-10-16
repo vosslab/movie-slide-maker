@@ -23,6 +23,7 @@ import slide_maker.rt_scraper
 import slide_maker.tmdb_client
 import slide_maker.imdb_ratings
 import slide_maker.movie_pipeline
+import slide_maker.slide_convert
 import slide_maker.metacritic_scraper
 
 
@@ -86,6 +87,7 @@ def injected_tmdb(
 		tmdb_id=152601,
 		imdb_id="tt1798709",
 		poster_path=str(poster_path),
+		original_language="English",
 	)
 	return movie
 
@@ -119,7 +121,10 @@ def validate_imdb_provider_labels() -> None:
 		imdb_rating=7.6,
 		imdb_votes=228245,
 	)
-	slide_maker.movie_pipeline._validate_imdb_rating(result, movie)
+	require(
+		slide_maker.movie_pipeline._valid_imdb_rating(result, movie),
+		"Matching IMDb identifier was rejected for translated title or release-year labels",
+	)
 
 
 #============================================
@@ -176,7 +181,7 @@ def incomplete_rt(
 	expected_year: int,
 	expected_directors: list[str],
 ) -> slide_maker.rt_scraper.RtRating:
-	"""Return the mandatory-field-absent injected transition."""
+	"""Return an otherwise valid rating record without a review summary."""
 	result = injected_rt(
 		imdb_id,
 		rt_slug,
@@ -199,6 +204,31 @@ def incomplete_rt(
 
 
 #============================================
+def unmatched_rt(
+	imdb_id: str,
+	rt_slug: str,
+	expected_title: str,
+	expected_year: int,
+	expected_directors: list[str],
+) -> slide_maker.rt_scraper.RtRating:
+	"""Return a valid-looking Rotten Tomatoes record for the wrong movie."""
+	unused = (imdb_id, rt_slug, expected_title, expected_year, expected_directors)
+	if not unused:
+		raise RuntimeError("Injected RT arguments were unexpectedly absent")
+	return slide_maker.rt_scraper.RtRating(
+		imdb_id="tt0000001",
+		title="Different Film",
+		year=1999,
+		directors=["Different Director"],
+		rt_tomatometer=75,
+		rt_audience_score=80,
+		rt_state="fresh",
+		rt_consensus="This must not appear on Her's slide.",
+		canonical_url="https://www.rottentomatoes.com/m/different_film",
+	)
+
+
+#============================================
 def injected_bundle(
 	rt_provider: object,
 ) -> slide_maker.movie_pipeline.ProviderBundle:
@@ -216,16 +246,47 @@ def injected_bundle(
 
 
 #============================================
-def validate_product(product_path: pathlib.Path, expected_title: str) -> None:
-	"""Validate one product package and its displayed movie identity."""
+def validate_product(
+	product_path: pathlib.Path,
+	expected_title: str,
+	expected_labels: tuple[str, ...],
+) -> None:
+	"""Validate one product package and its included movie information."""
 	require(product_path.is_file(), f"Pipeline product is absent: {product_path}")
 	require(product_path.stat().st_size > 0, f"Pipeline product is empty: {product_path}")
 	require(zipfile.is_zipfile(product_path), f"Pipeline product is not an ODP: {product_path}")
 	with zipfile.ZipFile(product_path) as archive:
 		content = archive.read("content.xml").decode("utf-8")
 	require(expected_title in content, f"Pipeline product is missing {expected_title!r}")
-	for label in ("IMDB rating", "Critics: RT", "Audience:", "Review Summary:"):
+	for label in expected_labels:
 		require(label in content, f"Pipeline product is missing label: {label}")
+
+
+#============================================
+def run_injected_resolution() -> None:
+	"""Keep available metadata when one source field or identity is unusable."""
+	with tempfile.TemporaryDirectory() as temporary_directory:
+		work_dir = pathlib.Path(temporary_directory)
+		missing_summary = slide_maker.movie_pipeline.resolve_movie_data(
+			"Her (2013)",
+			work_dir,
+			injected_bundle(incomplete_rt),
+			ignore_prompt,
+			ignore_output,
+		)
+		require(
+			missing_summary.rt_consensus == "",
+			"Missing review summary was replaced with invented text",
+		)
+		unmatched = slide_maker.movie_pipeline.resolve_movie_data(
+			"Her (2013)",
+			work_dir,
+			injected_bundle(unmatched_rt),
+			ignore_prompt,
+			ignore_output,
+		)
+		require(unmatched.rt_tomatometer is None, "Wrong-film RT score reached the slide data")
+		require(unmatched.rt_consensus == "", "Wrong-film RT summary reached the slide data")
 
 
 #============================================
@@ -240,35 +301,37 @@ def run_injected_success() -> None:
 			ignore_prompt,
 			ignore_output,
 		)
-		validate_product(product_path, "Her (2013)")
+		validate_product(
+			product_path,
+			"Her (2013)",
+			("IMDB rating", "Critics: RT", "Audience:", "Original language:", "Review Summary:"),
+		)
 		require(not work_dir.joinpath("her_2013.pptx").exists(), "Accepted scratch PPTX remained")
 
 
 #============================================
-def run_injected_abort() -> None:
-	"""Require a mandatory source failure before either presentation file exists."""
+def run_injected_missing_consensus() -> None:
+	"""Accept a slide when Rotten Tomatoes has no optional review summary."""
 	with tempfile.TemporaryDirectory() as temporary_directory:
 		work_dir = pathlib.Path(temporary_directory)
-		try:
-			slide_maker.movie_pipeline.generate_movie_slide(
-				"Her (2013)",
-				work_dir,
-				injected_bundle(incomplete_rt),
-				ignore_prompt,
-				ignore_output,
-			)
-		except slide_maker.movie_pipeline.MoviePipelineError as error:
-			diagnostic = str(error)
-		else:
-			raise RuntimeError("Mandatory-field-absent transition did not stop the pipeline")
-		require("Rotten Tomatoes" in diagnostic, "Abort diagnostic omitted the source")
-		require("'Her' (2013)" in diagnostic, "Abort diagnostic omitted the movie identity")
-		require(
-			"https://www.rottentomatoes.com/m/her" in diagnostic,
-			"Abort diagnostic omitted the attempted URL",
+		product_path = slide_maker.movie_pipeline.generate_movie_slide(
+			"Her (2013)",
+			work_dir,
+			injected_bundle(incomplete_rt),
+			ignore_prompt,
+			ignore_output,
 		)
-		require(not list(work_dir.glob("*.pptx")), "Provider abort left a PPTX")
-		require(not list(work_dir.glob("*.odp")), "Provider abort left an ODP")
+		validate_product(
+			product_path,
+			"Her (2013)",
+			("IMDB rating", "Critics: RT", "Audience:", "Original language:"),
+		)
+		with zipfile.ZipFile(product_path) as archive:
+			root = slide_maker.slide_convert.parse_xml(archive, "content.xml")
+			page = slide_maker.slide_convert.movie_pages(root)[0]
+			content = slide_maker.slide_convert.normalized_frame_text(page)
+		require("Review Summary:" not in content, "Missing summary produced a placeholder label")
+		require(not list(work_dir.glob("*.pptx")), "Accepted scratch PPTX remained")
 
 
 #============================================
@@ -281,16 +344,17 @@ def run_live_her() -> pathlib.Path:
 		write_line=print,
 	)
 	require(product_path == REPO_ROOT / "her_2013.odp", "Live product slug changed")
-	validate_product(product_path, "Her (2013)")
+	validate_product(product_path, "Her (2013)", ("Original language:",))
 	return product_path
 
 
 #============================================
 def main() -> None:
-	"""Run injected success, injected abort, then the live Her product path."""
+	"""Run injected sparse acceptance, then the live Her product path."""
 	validate_imdb_provider_labels()
+	run_injected_resolution()
 	run_injected_success()
-	run_injected_abort()
+	run_injected_missing_consensus()
 	product_path = run_live_her()
 	print(f"Movie-pipeline orchestration E2E passed: {product_path}")
 

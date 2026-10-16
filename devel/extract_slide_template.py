@@ -13,6 +13,9 @@ import pptx
 import pptx.util
 import pptx.enum.text
 
+# local repo modules
+import slide_maker.slide_builder
+
 
 SOURCE_DECK = pathlib.Path("SLIDE_ARTIFACTS/class02b-pre-film_content.odp")
 SOURCE_SLIDE_NUMBER = 2
@@ -323,8 +326,8 @@ def find_pptx_anchors(slide: object) -> dict[str, object]:
 			f"Required {role} anchor has invalid geometry",
 		)
 		require(
-			first_run_font(shape) == "OpenDyslexic",
-			f"Required {role} font anchor is not OpenDyslexic",
+			first_run_font(shape) in ("OpenDyslexic", slide_maker.slide_builder.FONT_NAME),
+			f"Required {role} font anchor is not a supported movie font",
 		)
 	require(
 		anchors["title"].text_frame.auto_size == pptx.enum.text.MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT,
@@ -420,6 +423,7 @@ def write_template(
 		shape.name = ANCHOR_NAMES[role]
 	retain_selected_slide(presentation, slide_index)
 	record_template_identity(presentation)
+	slide_maker.slide_builder.normalize_template_fonts(presentation)
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 	presentation.save(output_path)
 	return anchors
