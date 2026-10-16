@@ -44,13 +44,12 @@ EXPECTED_PAGE_HEIGHT_CM = 17.5
 GEOMETRY_TOLERANCE_CM = slide_maker.slide_convert.GEOMETRY_TOLERANCE_CM
 EVIDENCE_DIR = REPO_ROOT / "output_smoke" / "visual_accept"
 EXPECTED_LABELS = (
-	"IMDB rating",
-	"Critics: RT",
-	"Audience:",
+	"IMDb",
+	"RT critics:",
+	"RT audience:",
 	"Genre:",
 	"Director:",
 	"Run time:",
-	"Original language:",
 	"Review Summary:",
 )
 GEOMETRY_ATTRIBUTES = (
@@ -185,7 +184,6 @@ def expected_outline_fragments(movie_data: slide_maker.moviedata.MovieData) -> t
 		", ".join(movie_data.genres),
 		", ".join(movie_data.directors),
 		f"{movie_data.runtime_minutes} min",
-		f"Original language: {movie_data.original_language}",
 		movie_data.rt_consensus,
 		slide_maker.emoji_marks.rt_critic_mark_for_score(movie_data.rt_tomatometer),
 		slide_maker.emoji_marks.GREEN_SQUARE_MARK,
@@ -217,15 +215,14 @@ def validate_source_text(slide: object, movie_data: slide_maker.moviedata.MovieD
 		"Built outline is missing text-to-fit autofit",
 	)
 	for label in EXPECTED_LABELS:
-		require(label in outline.text, f"Built outline is missing literal label: {label}")
+		require(label in outline.text.replace("\u00a0", " "), f"Built outline is missing: {label}")
 	for fragment in expected_outline_fragments(movie_data):
-		require(fragment in outline.text, f"Built outline is missing movie text: {fragment}")
+		require(fragment in outline.text.replace("\u00a0", " "), f"Built outline omitted: {fragment}")
 	paragraphs = outline.text_frame.paragraphs
-	levels = [paragraph.level for paragraph in paragraphs]
-	require(levels == [0, 1, 1, 1, 0, 0, 0, 0, 0], "Built outline bullet hierarchy changed")
-	require("IMDB rating" in paragraphs[1].text, "IMDb rating lost its secondary bullet")
-	require("Critics: RT" in paragraphs[2].text, "Critics ratings lost their secondary bullet")
-	require("Audience:" in paragraphs[3].text, "Popcornmeter lost its secondary bullet")
+	for paragraph in paragraphs:
+		is_rating = any(label in paragraph.text.replace("\u00a0", " ") for label in EXPECTED_LABELS[:3])
+		is_rating = is_rating or "Metacritic:" in paragraph.text
+		require(paragraph.level == (1 if is_rating else 0), "Built outline hierarchy changed")
 	for shape in (title, outline):
 		for paragraph in shape.text_frame.paragraphs:
 			for run in paragraph.runs:
@@ -469,7 +466,7 @@ def validate_converted_text(
 	lists = list(frames[outline_role].iter(f"{{{TEXT_NS}}}list"))
 	list_texts = [normalized_text(text_list) for text_list in lists]
 	require(
-		any("IMDB rating" in text and "Critics: RT" in text for text in list_texts),
+		any("IMDb" in text and "RT critics:" in text.replace("\u00a0", " ") for text in list_texts),
 		"Converted outline lost the nested ratings bullet meaning",
 	)
 	styles = style_map(content_root, styles_root)

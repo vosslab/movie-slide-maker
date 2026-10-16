@@ -1,52 +1,74 @@
 # Movie Slide Maker
 
-Create editable movie introduction slides for teaching from live metadata and ratings. Each slide adapts to missing information, shows the original language, and uses Atkinson Hyperlegible Next.
+Make a movie summary slide for a film club, classroom, presentation, or movie night. Enter a title to gather the poster, plot, and ratings into one editable slide.
 
-The macOS workflow produces validated LibreOffice Impress presentations. Live verification on
-2026-10-16 produced all five default movies, including a slide without a Metascore or review summary.
+Introduce a film, start a discussion, or help a group choose what to watch without collecting details
+from several websites. Open the finished slide in LibreOffice Impress to edit it for your audience.
+Once installed, making a slide means running a command and entering a movie; you do not write code.
+The current setup requires a Mac and some Terminal steps, described below.
 
 ## Screenshots
 
-Her shows the full layout; A Ghost Waits shows how unavailable fields disappear while the remaining
-movie details stay useful. Both are live captures from 2026-10-16, with posters supplied through
-TMDB. Ratings and provider coverage can change.
+Click any preview to see the full-size slide. These live examples from 2026-10-16 show different
+amounts of plot, ratings, and review text; A Ghost Waits has no Metascore or review summary.
+Posters come from TMDB. Ratings and provider coverage can change.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
-![Her slide with poster, ratings, original language, and review summary](docs/screenshots/movie_slide_her.png)
-![A Ghost Waits slide with original language and ratings, omitting missing Metascore and summary](docs/screenshots/movie_slide_a_ghost_waits.png)
+<table>
+  <tr>
+    <td width="50%">
+      <a href="docs/screenshots/movie_slide_her.webp"><img src="docs/screenshots/movie_slide_her.webp" width="400" alt="Her slide with poster, compact ratings, and review summary"></a><br>
+      Her (2013)
+    </td>
+    <td width="50%">
+      <a href="docs/screenshots/movie_slide_cooties.webp"><img src="docs/screenshots/movie_slide_cooties.webp" width="400" alt="Cooties slide with poster, plot, and critic and audience ratings"></a><br>
+      Cooties (2014)
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <a href="docs/screenshots/movie_slide_sinners.webp"><img src="docs/screenshots/movie_slide_sinners.webp" width="400" alt="Sinners slide with poster, compact ratings, and movie details"></a><br>
+      Sinners (2025)
+    </td>
+    <td width="50%">
+      <a href="docs/screenshots/movie_slide_a_ghost_waits.webp"><img src="docs/screenshots/movie_slide_a_ghost_waits.webp" width="400" alt="A Ghost Waits slide with poster and ratings, omitting missing Metascore and summary"></a><br>
+      A Ghost Waits (2020)
+    </td>
+  </tr>
+</table>
 <!-- screenshots:end -->
 
-## From identity to lecture slide
+## From movie title to slide
 
-The project is designed for instructors who introduce films in lecture decks and want current
-metadata without manually reconciling several movie sites. One movie identity flows through a
-committed teaching template while each provider remains responsible for its own data.
+Use a slide to introduce a screening, compare films for a club, add context to a talk, or share a
+recommendation. The same layout works with a full set of ratings or just the details available.
 
-- Accept a title and year, IMDb id or URL, or TMDB id or URL, with cross-provider identity checks.
-- Combine TMDB metadata and poster art with available IMDb, Rotten Tomatoes, and Metacritic ratings.
-- Highlight IMDb scores and compact vote counts; distinguish critic and audience ratings.
-- Show one original language when known and use Atkinson Hyperlegible Next throughout.
-- Omit missing fields, retain useful information when a source fails, and expand text without a poster.
-- Produce editable 28 by 17.5 cm slides and validate content and geometry after ODP conversion.
+- Find a movie by title and year, or paste its IMDb or TMDB link.
+- Bring together poster art, plot, genre, director, and running time.
+- Compare available IMDb, Rotten Tomatoes, and Metacritic scores, with critic and audience ratings labeled.
+- Show the original language for non-English films when known.
+- Leave out unavailable details so the slide stays useful when a source has gaps.
+- Edit the finished slide in LibreOffice Impress and copy it into your presentation.
 
-The resulting slide is organized around a centered `Title (Year)` heading, a teaching outline with
-plot and rating context, and an aspect-preserving poster. The permanent runtime design authority is
+Each slide has a bold, centered title, a movie summary with compact ratings, and a poster.
+Text uses Atkinson Hyperlegible Next on a 28 by 17.5 cm slide. The layout comes from
 [`template/movie_slide_template.pptx`](template/movie_slide_template.pptx).
 
 ## Quick start
 
-The first-success path needs Bash, Python 3.12, the configured TMDB token, Atkinson Hyperlegible Next,
-and the LibreOffice and Python dependencies in [docs/INSTALL.md](docs/INSTALL.md). Run the sole root CLI:
+First, follow [docs/INSTALL.md](docs/INSTALL.md) to install Python 3.12, LibreOffice, the font, and
+the other requirements, then add your TMDB access token (the credential used to retrieve movie details).
+After this one-time setup, open Terminal in the downloaded project folder and run:
 
 ```bash
 source source_me.sh
 python3 make_movie_slide.py
 ```
 
-Enter `tmdb:152601` for Her (2013). An explicit ID avoids the selection menu that a title search
-can produce. The final progress message names the generated `her_2013.odp` in your current directory.
-Open it in LibreOffice Impress to review or edit the slide. The scratch PPTX is removed only after
-ODP validation succeeds.
+At the movie prompt, enter `Her (2013)`. If several matches appear, choose the intended movie from
+the numbered list. You can also enter `tmdb:152601` to select this film directly.
+When the command finishes, open `her_2013.odp` in the project folder with LibreOffice Impress.
+You now have an editable movie summary slide to use or copy into another presentation.
 
 You can also enter an IMDb URL such as `https://www.imdb.com/title/tt0316654/` for Spider-Man 2;
 see [docs/USAGE.md](docs/USAGE.md) for the supported input forms.
@@ -83,7 +105,11 @@ bounded retry for HTTP 403 or 429.
 
 ## Project status and limits
 
+- Live verification on 2026-10-16 produced all five default movies, including a slide without a
+  Metascore or review summary.
 - Missing metadata is omitted; unavailable language data does not imply English or subtitles.
+- A poster is required. If the primary TMDB poster fails, alternate posters are tried; if none
+  can be retrieved, that movie stops with an error.
 - The repository currently targets macOS, Python 3.12, LibreOffice Still, and Atkinson Hyperlegible Next.
 - Live provider markup and values can change. Direct E2E scripts validate identity, available fields,
   and plausible ranges instead of freezing current ratings.

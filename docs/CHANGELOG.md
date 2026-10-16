@@ -4,6 +4,17 @@
 
 ### Behavior or Interface Changes
 
+- Convert the four README screenshots to WebP at quality 90 and update their links and
+  reproducible conversion instructions; retain the compact grid and full image dimensions.
+- Pack independent rating items into compact rows using measured text width and the whole
+  outline's content budget. Keep each rating together and preserve the IMDb score highlight.
+- Require a poster in single-movie and batch retrieval. Try alternate TMDB posters if the
+  primary is absent or fails; stop that movie if no usable poster is retrieved. Remove the
+  old title-only fallback after failed or mismatched TMDB retrieval.
+- Present four README examples in a compact 2 by 2 grid; 400-pixel previews link to full-size PNGs.
+- Omit the original-language line for English movies and make generated movie titles bold.
+- Refocus README onboarding on movie summary slides for non-coders, including film clubs,
+  presentations, classrooms, and movie nights; move recent verification out of the opening.
 - Build movie slides from available information without a metadata-completeness threshold.
   Preserve independent ratings, vote counts, reviews, and descriptive fields; report source
   omissions while retaining the requested or selected movie.
@@ -21,6 +32,27 @@
 
 ### Developer Tests and Notes
 
+- Verified all four WebP files decode at the original dimensions and all eight README image
+  references resolve. Total screenshot size fell from 2,615,719 to 653,324 bytes (75% smaller).
+  Inspected the converted Her slide; 21 Markdown-link checks and `git diff --check` passed.
+- Rating-layout checks cover complete-item wrapping and the effect of prose on row choices.
+  Poster checks recover absent/broken primary artwork and stop publication on exhausted artwork.
+  The full suite passed 721 tests. The existing normal and long-text LibreOffice visual-acceptance
+  script passed; dense prose uses two compact rating rows while the shorter example uses three
+  rows at the larger font size.
+- Rebuilt all five live examples with the existing review-deck module, then inspected and copied
+  Her, Cooties, Sinners, and A Ghost Waits into the README grid. All four are 1654 by 1034 pixels,
+  below 1 MB, and linked at full resolution; every preview and image link resolves locally.
+  No managed screenshot is unreferenced. Capture commands remain in [DEVEL_README.md](../devel/DEVEL_README.md).
+- Final full pytest run passed 753 checks, including the newly discovered source and test files.
+- Follow-up validation: 715 pytest checks passed, plus 197 documentation checks after the
+  audience rewrite. Seven adaptive cases passed source inspection and LibreOffice conversion;
+  converted ODP text omits English while retaining Korean and Spanish, and titles retain bold.
+- Rebuilt the five-movie live review deck and visually checked the Her and A Ghost Waits pages.
+  Refreshed both README screenshots and alt text for bold titles and omitted English language
+  lines; both PNGs remain 1654 by 1034 pixels and below 1 MB.
+- Verified the documented single-movie CLI with `tmdb:152601`; it produced `her_2013.odp`.
+  The final README opening and local-link checks passed all 27 checks.
 - Full pytest suite passed: 689 tests. Added focused protection for original-language selection,
   independent IMDb values, and mismatched TMDB detail responses.
 - Provider and pipeline correction checks passed with deterministic injected responses.

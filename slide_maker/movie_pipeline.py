@@ -335,20 +335,6 @@ def _report_source_problem(
 
 
 #============================================
-def _requested_identity(
-	movie_input: slide_maker.movie_input.MovieInput,
-	read_choice: collections.abc.Callable[[str], str],
-) -> tuple[str, int | None]:
-	"""Return a slide title without inventing a title for identifier-only input."""
-	if movie_input.kind == slide_maker.movie_input.InputKind.TITLE:
-		return movie_input.value, movie_input.year
-	title = read_choice("TMDB details are unavailable. Enter the movie title: ").strip()
-	if not title:
-		raise MoviePipelineError("Identifier-only input needs a movie title when TMDB details fail")
-	return title, None
-
-
-#============================================
 def _matches_requested_identity(
 	movie: slide_maker.tmdb_client.TmdbMovie,
 	requested_title: str,
@@ -362,26 +348,6 @@ def _matches_requested_identity(
 	if requested_year is not None and movie.year is not None and movie.year != requested_year:
 		return False
 	return True
-
-
-#============================================
-def _sparse_movie(title: str, year: int | None) -> slide_maker.moviedata.MovieData:
-	"""Build a title-only contract after the source identity cannot be enriched."""
-	movie_data = slide_maker.moviedata.MovieData(title=title, year=year)
-	slide_maker.moviedata.validate_movie_data(movie_data)
-	return movie_data
-
-
-#============================================
-def _fallback_identity(
-	movie_input: slide_maker.movie_input.MovieInput,
-	selected_identity: slide_maker.movie_resolver.ResolvedTmdbMovie | None,
-	read_choice: collections.abc.Callable[[str], str],
-) -> tuple[str, int | None]:
-	"""Return the trusted selection or recover a title for an identifier input."""
-	if selected_identity is not None and selected_identity.title is not None:
-		return selected_identity.title, selected_identity.year
-	return _requested_identity(movie_input, read_choice)
 
 
 #============================================
@@ -450,13 +416,13 @@ def resolve_movie_data(
 
 	Raises:
 		ValueError: The input or a provider argument is malformed.
-		MoviePipelineError: Identifier-only input cannot recover a display title.
+		MoviePipelineError: The movie identity or a usable poster cannot be retrieved.
 		RuntimeError: A resolver or provider has an unexpected programming failure.
 
 	Note:
-		The function may prompt through ``read_choice`` when identifier-only
-		input cannot recover a title. It reports omitted source data through
-		``write_line`` and writes an available poster into ``poster_directory``.
+		The function may prompt through ``read_choice`` to resolve an ambiguous title.
+		It reports omitted optional data through ``write_line`` and requires a poster
+		in ``poster_directory`` before fetching independent ratings.
 	"""
 	movie_input = slide_maker.movie_input.classify_movie_input(raw_input)
 	requested_title = movie_input.value if movie_input.kind == slide_maker.movie_input.InputKind.TITLE else None
@@ -475,21 +441,9 @@ def resolve_movie_data(
 		slide_maker.movie_resolver.MovieResolutionError,
 		slide_maker.tmdb_client.TmdbSourceError,
 	) as error:
-		_report_source_problem(write_line, "TMDB", error)
-		requested_title, requested_year = _fallback_identity(
-			movie_input,
-			selected_identity,
-			read_choice,
-		)
-		return _sparse_movie(requested_title, requested_year)
+		raise MoviePipelineError(f"Movie retrieval failed; a verified poster is required: {error}") from error
 	if tmdb_movie.tmdb_id != tmdb_id:
-		_report_source_problem(write_line, "TMDB", "details returned a different TMDB id")
-		requested_title, requested_year = _fallback_identity(
-			movie_input,
-			selected_identity,
-			read_choice,
-		)
-		return _sparse_movie(requested_title, requested_year)
+		raise MoviePipelineError("Movie retrieval failed: details returned a different TMDB id")
 
 	if movie_input.kind == slide_maker.movie_input.InputKind.TITLE:
 		if requested_title is None:
@@ -500,18 +454,14 @@ def resolve_movie_data(
 			requested_title = selected_identity.title
 			requested_year = selected_identity.year
 		elif not _matches_requested_identity(tmdb_movie, requested_title, requested_year):
-			_report_source_problem(write_line, "TMDB", "returned a different movie")
-			return _sparse_movie(requested_title, requested_year)
+			raise MoviePipelineError("Movie retrieval failed: TMDB returned a different movie")
 	else:
 		requested_title = tmdb_movie.title.strip()
 		requested_year = tmdb_movie.year
 	if not requested_title:
 		raise MoviePipelineError("TMDB details did not provide a usable movie title")
-	if tmdb_movie.poster_path is None:
-		poster_problem = getattr(tmdb_movie, "poster_diagnostic", None)
-		if poster_problem is None:
-			poster_problem = "no usable poster was available"
-		_report_source_problem(write_line, "TMDB poster", poster_problem)
+	if tmdb_movie.poster_path is None or not pathlib.Path(tmdb_movie.poster_path).is_file():
+		raise MoviePipelineError(f"Poster retrieval failed for {requested_title}; no slide was generated")
 
 	# TMDB owns the base metadata.  Missing optional fields remain absent rather
 	# than preventing independent ratings from reaching a student-facing slide.

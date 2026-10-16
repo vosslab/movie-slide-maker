@@ -27,13 +27,12 @@ import slide_maker.slide_builder
 
 
 EXPECTED_LABELS = (
-	"IMDB rating",
-	"Critics: RT",
-	"Audience:",
+	"IMDb",
+	"RT critics:",
+	"RT audience:",
 	"Genre:",
 	"Director:",
 	"Run time:",
-	"Original language:",
 	"Review Summary:",
 )
 
@@ -87,9 +86,11 @@ def verify_text_roles(slide: object) -> None:
 		"Built outline is missing text-to-fit autofit",
 	)
 	for label in EXPECTED_LABELS:
-		require(label in outline.text, f"Built outline is missing literal label: {label}")
-	levels = [paragraph.level for paragraph in outline.text_frame.paragraphs]
-	require(levels == [0, 1, 1, 1, 0, 0, 0, 0, 0], "Built outline hierarchy changed")
+		require(label in outline.text.replace("\u00a0", " "), f"Built outline is missing: {label}")
+	for paragraph in outline.text_frame.paragraphs:
+		is_rating = any(label in paragraph.text.replace("\u00a0", " ") for label in EXPECTED_LABELS[:3])
+		is_rating = is_rating or "Metacritic:" in paragraph.text
+		require(paragraph.level == (1 if is_rating else 0), "Built outline hierarchy changed")
 	for shape in (title, outline):
 		for paragraph in shape.text_frame.paragraphs:
 			for run in paragraph.runs:
@@ -109,15 +110,15 @@ def verify_text_roles(slide: object) -> None:
 		color.get("val") == slide_maker.slide_builder.IMDB_SCORE_HIGHLIGHT,
 		"Built IMDb score highlight color changed",
 	)
-	require("792k votes" in imdb_paragraph.text, "Built IMDb vote count is not compact")
-	ratings_text = outline.text_frame.paragraphs[2].text
+	require("792k\u00a0votes" in imdb_paragraph.text, "Built IMDb vote count is not compact")
+	ratings_text = outline.text
 	require(
 		slide_maker.emoji_marks.rt_critic_mark_for_score(95) in ratings_text,
 		"Built critics score has no high-score mark",
 	)
 	require(
 		slide_maker.emoji_marks.rt_audience_mark_for_score(82)
-		in outline.text_frame.paragraphs[3].text,
+		in ratings_text,
 		"Built audience score has no Popcornmeter mark",
 	)
 

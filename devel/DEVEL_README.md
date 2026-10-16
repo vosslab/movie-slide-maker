@@ -100,16 +100,24 @@ captured.
 ## Refresh README screenshots
 
 Use the existing batch renderer from the repository root. It generates the actual ODP,
-converts it to PDF with LibreOffice, and renders pages with Poppler:
+converts it to PDF with LibreOffice, and renders pages with Poppler. Install the maintainer
+image encoder with `brew install webp`, then convert the selected pages with `cwebp -q 90`:
 
 ```bash
 source source_me.sh && python3 -m slide_maker.review_deck < /dev/null
-cp output_smoke/review_deck_pages/slide_01.png docs/screenshots/movie_slide_her.png
-cp output_smoke/review_deck_pages/slide_05.png docs/screenshots/movie_slide_a_ghost_waits.png
+cp output_smoke/review_deck_pages/slide_01.png /tmp/movie_slide_her.png
+cp output_smoke/review_deck_pages/slide_02.png /tmp/movie_slide_cooties.png
+cp output_smoke/review_deck_pages/slide_04.png /tmp/movie_slide_sinners.png
+cp output_smoke/review_deck_pages/slide_05.png /tmp/movie_slide_a_ghost_waits.png
+for name in her cooties sinners a_ghost_waits; do
+  cwebp -q 90 "/tmp/movie_slide_${name}.png" -o "/tmp/movie_slide_${name}.webp" &&
+    cp "/tmp/movie_slide_${name}.webp" docs/screenshots/
+done
 ```
 
-Before copying, confirm the accepted page order is Her first and A Ghost Waits fifth.
-Inspect both images for clipping and verify the README captions still match provider coverage.
-Keep PNGs within 1920 pixels on the longer edge and about 1 MB each. The existing renderer
+Before copying, confirm the accepted page order is Her, Cooties, It, Sinners, A Ghost Waits.
+Inspect the four selected images for clipping and verify the README captions match provider coverage.
+The README uses a 2 by 2 HTML table with 400-pixel previews linked to the full-size WebP images.
+Keep WebP images within 1920 pixels on the longer edge and about 1 MB each. The existing renderer
 produces 1654 by 1034 pixel images. Update the capture date in [README.md](../README.md)
 and record verification in [CHANGELOG.md](../docs/CHANGELOG.md).

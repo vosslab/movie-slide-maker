@@ -134,23 +134,23 @@ def expected_fragments(movie_data: slide_maker.moviedata.MovieData) -> tuple[str
 	if movie_data.plot:
 		fragments.append(movie_data.plot)
 	if movie_data.imdb_rating is not None:
-		fragments.append(f"IMDB rating {movie_data.imdb_rating:.1f}")
+		fragments.append(f"IMDb {movie_data.imdb_rating:.1f}")
 	if movie_data.imdb_votes is not None:
 		votes = slide_maker.slide_builder.format_compact_count(movie_data.imdb_votes)
 		fragments.append(f"{votes} votes")
 	if movie_data.rt_tomatometer is not None:
 		fragments.append(f"{movie_data.rt_tomatometer}%")
 	if movie_data.rt_audience_score is not None:
-		fragments.append("Audience:")
+		fragments.append("RT audience:")
 	if movie_data.metascore is not None:
-		fragments.append("MS")
+		fragments.append("Metacritic:")
 	if movie_data.genres:
 		fragments.append(f"Genre: {', '.join(movie_data.genres)}")
 	if movie_data.directors:
 		fragments.append(f"Director: {', '.join(movie_data.directors)}")
 	if movie_data.runtime_minutes is not None:
 		fragments.append(f"Run time: {movie_data.runtime_minutes} min")
-	if movie_data.original_language:
+	if movie_data.original_language and movie_data.original_language != "English":
 		fragments.append(f"Original language: {movie_data.original_language}")
 	if movie_data.rt_consensus:
 		fragments.append(f"Review Summary: {movie_data.rt_consensus}")
@@ -170,6 +170,10 @@ def validate_source_slide(
 		title.text == slide_maker.slide_builder.movie_title(movie_data),
 		"Adaptive title did not preserve the available title and year",
 	)
+	require(
+		all(run.font.bold for paragraph in title.text_frame.paragraphs for run in paragraph.runs),
+		"Adaptive title is not bold",
+	)
 	outline = shape_by_name(slide, slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME)
 	poster = shape_by_name(slide, slide_maker.slide_builder.TEMPLATE_POSTER_NAME)
 	fragments = expected_fragments(movie_data)
@@ -177,8 +181,10 @@ def validate_source_slide(
 	require((poster is not None) == (movie_data.poster_path is not None), "Adaptive poster presence changed")
 	if outline is not None:
 		for fragment in fragments:
-			require(fragment in outline.text, f"Adaptive outline omitted {fragment!r}")
+			require(fragment in outline.text.replace("\u00a0", " "), f"Outline omitted {fragment!r}")
 		require("N/A" not in outline.text, "Adaptive outline invented an N/A placeholder")
+		if movie_data.original_language in (None, "", "English"):
+			require("Original language:" not in outline.text, "Unneeded language line appeared")
 		if movie_data.poster_path is None:
 			template_outline = shape_by_name(template_slide, slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME)
 			require(template_outline is not None, "Template has no outline anchor")
@@ -186,7 +192,7 @@ def validate_source_slide(
 	if movie_data.imdb_rating is not None and movie_data.imdb_votes is None:
 		require("votes" not in outline.text, "Missing vote count produced a placeholder")
 	if movie_data.title == "Subtitled Feature":
-		for label in ("IMDB rating", "Critics:", "Audience:", "MS "):
+		for label in ("IMDb", "RT critics:", "RT audience:", "Metacritic:"):
 			require(label not in outline.text, "No-rating slide invented a ratings label")
 	for shape in (title, outline):
 		if shape is None:

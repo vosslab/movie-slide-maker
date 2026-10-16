@@ -18,6 +18,7 @@ import slide_maker.http_client
 TMDB_API_ROOT = "https://api.themoviedb.org/3"
 TMDB_IMAGE_ROOT = "https://image.tmdb.org/t/p/original"
 IMDB_ID_PATTERN = re.compile(r"tt[0-9]+")
+POSTER_PATH_PATTERN = re.compile(r"/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png|webp)", re.IGNORECASE)
 
 
 class TmdbSourceError(RuntimeError):
@@ -48,7 +49,6 @@ class TmdbMovie:
 	imdb_id: str | None = None
 	poster_path: str | None = None
 	original_language: str | None = None
-	poster_diagnostic: str | None = None
 
 
 #============================================
@@ -226,13 +226,13 @@ def _download_poster(
 	tmdb_id: int,
 	remote_path: str,
 	poster_directory: str | pathlib.Path,
-	identity: str,
 ) -> tuple[str | None, str | None]:
 	"""Download a decodable original TMDB poster with an absence diagnostic."""
+	# ASVS 5.3.2: image metadata may name a file, never an arbitrary URL or output path.
+	if POSTER_PATH_PATTERN.fullmatch(remote_path) is None:
+		return None, "poster path was not a supported TMDB image path"
 	url = f"{TMDB_IMAGE_ROOT}{remote_path}"
 	suffix = pathlib.PurePosixPath(remote_path).suffix
-	if not suffix:
-		return None, "poster path had no file extension"
 	try:
 		response = slide_maker.http_client.fetch_url(url, {"Accept": "image/*"})
 	except slide_maker.http_client.HttpSourceError:
@@ -250,6 +250,39 @@ def _download_poster(
 	output_path = output_directory / f"tmdb_{tmdb_id}_poster{suffix}"
 	output_path.write_bytes(response.content)
 	return str(output_path), None
+
+
+#============================================
+def _fetch_poster(
+	tmdb_id: int,
+	primary_path: str | None,
+	poster_directory: str | pathlib.Path,
+	token: str,
+	identity: str,
+) -> str:
+	"""Recover from a missing or broken primary poster using this movie's images."""
+	problem = "TMDB did not provide a primary poster"
+	if primary_path is not None:
+		poster_path, problem = _download_poster(tmdb_id, primary_path, poster_directory)
+		if poster_path is not None:
+			return poster_path
+	images_url = f"{TMDB_API_ROOT}/movie/{tmdb_id}/images"
+	images, attempted = _fetch_json(images_url, token, None, identity)
+	_require(images.get("id") == tmdb_id, identity, attempted, "poster images returned a different id")
+	posters = images.get("posters")
+	_require(isinstance(posters, list), identity, attempted, "poster images were not a list")
+	tried = {primary_path}
+	for poster in posters:
+		if not isinstance(poster, dict):
+			continue
+		remote_path = _optional_text(poster, "file_path")
+		if remote_path is None or remote_path in tried:
+			continue
+		tried.add(remote_path)
+		poster_path, problem = _download_poster(tmdb_id, remote_path, poster_directory)
+		if poster_path is not None:
+			return poster_path
+	raise _source_error(identity, images_url, f"poster retrieval failed: {problem}")
 
 
 #============================================
@@ -378,17 +411,7 @@ def fetch_movie(tmdb_id: int, poster_directory: str | pathlib.Path) -> TmdbMovie
 	if imdb_id is not None and IMDB_ID_PATTERN.fullmatch(imdb_id) is None:
 		imdb_id = None
 	remote_poster_path = _optional_text(data, "poster_path")
-	poster_path = None
-	poster_diagnostic = None
-	if remote_poster_path is not None:
-		poster_path, poster_diagnostic = _download_poster(
-			tmdb_id,
-			remote_poster_path,
-			poster_directory,
-			identity,
-		)
-	else:
-		poster_diagnostic = "TMDB did not provide a poster path"
+	poster_path = _fetch_poster(tmdb_id, remote_poster_path, poster_directory, token, identity)
 	original_language = _original_language_name(data, token)
 
 	movie = TmdbMovie(
@@ -402,6 +425,5 @@ def fetch_movie(tmdb_id: int, poster_directory: str | pathlib.Path) -> TmdbMovie
 		imdb_id=imdb_id,
 		poster_path=poster_path,
 		original_language=original_language,
-		poster_diagnostic=poster_diagnostic,
 	)
 	return movie

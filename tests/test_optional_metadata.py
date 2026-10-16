@@ -6,6 +6,9 @@ import types
 import pathlib
 import unittest.mock
 
+# PIP3 modules
+import pytest
+
 # local repo modules
 import slide_maker.imdb_ratings
 import slide_maker.movie_pipeline
@@ -52,8 +55,8 @@ def test_imdb_keeps_score_without_valid_votes() -> None:
 
 
 #============================================
-def test_pipeline_keeps_selection_when_details_return_wrong_id(tmp_path: pathlib.Path) -> None:
-	"""Wrong-film details cannot replace the selected movie or prevent its slide."""
+def test_pipeline_rejects_details_for_wrong_id(tmp_path: pathlib.Path) -> None:
+	"""Wrong-film metadata and artwork cannot replace the selected movie."""
 	selection = slide_maker.movie_resolver.ResolvedTmdbMovie(42, "Selected Movie", 1999)
 	wrong = slide_maker.tmdb_client.TmdbMovie(
 		title="Selected Movie", year=1999, tmdb_id=43, plot="Wrong-film information",
@@ -66,8 +69,7 @@ def test_pipeline_keeps_selection_when_details_return_wrong_id(tmp_path: pathlib
 		fetch_rt_rating=unittest.mock.Mock(side_effect=AssertionError("Wrong movie enriched")),
 		fetch_metacritic_rating=unittest.mock.Mock(side_effect=AssertionError("Wrong movie enriched")),
 	)
-	result = slide_maker.movie_pipeline.resolve_movie_data(
-		"Selected Movie (1999)", tmp_path, providers, write_line=unittest.mock.Mock(),
-	)
-	assert (result.title, result.year) == ("Selected Movie", 1999)
-	assert result.tmdb_id is None and result.plot == ""
+	with pytest.raises(slide_maker.movie_pipeline.MoviePipelineError, match="different TMDB id"):
+		slide_maker.movie_pipeline.resolve_movie_data(
+			"Selected Movie (1999)", tmp_path, providers, write_line=unittest.mock.Mock(),
+		)

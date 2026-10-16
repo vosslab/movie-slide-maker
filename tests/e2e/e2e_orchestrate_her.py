@@ -304,7 +304,7 @@ def run_injected_success() -> None:
 		validate_product(
 			product_path,
 			"Her (2013)",
-			("IMDB rating", "Critics: RT", "Audience:", "Original language:", "Review Summary:"),
+			("IMDb", "RT critics:", "RT audience:", "Review Summary:"),
 		)
 		require(not work_dir.joinpath("her_2013.pptx").exists(), "Accepted scratch PPTX remained")
 
@@ -324,7 +324,7 @@ def run_injected_missing_consensus() -> None:
 		validate_product(
 			product_path,
 			"Her (2013)",
-			("IMDB rating", "Critics: RT", "Audience:", "Original language:"),
+			("IMDb", "RT critics:", "RT audience:"),
 		)
 		with zipfile.ZipFile(product_path) as archive:
 			root = slide_maker.slide_convert.parse_xml(archive, "content.xml")
@@ -344,7 +344,7 @@ def run_live_her() -> pathlib.Path:
 		write_line=print,
 	)
 	require(product_path == REPO_ROOT / "her_2013.odp", "Live product slug changed")
-	validate_product(product_path, "Her (2013)", ("Original language:",))
+	validate_product(product_path, "Her (2013)", ())
 	return product_path
 
 

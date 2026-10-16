@@ -28,11 +28,12 @@ deck's exact 28 by 17.5 cm page size, so copying a slide into that deck does not
 
 The ratings block highlights the IMDb score in yellow and abbreviates large vote counts, such as
 `435k` or `1.2M`. Rotten Tomatoes critics use a rotten mark below 60, a tomato from 60 through 80,
-and a tomato with a trophy above 80. The optional audience score appears on its own Popcornmeter
-line when available. Missing fields are omitted, including unavailable ratings and reviews.
-The slide displays one `Original language:` value when known. This is the movie's original
-language, not a list of spoken languages or a claim about subtitles in a particular viewing copy.
-Text uses Atkinson Hyperlegible Next. Without a poster, the outline uses the available body width.
+and a tomato with a trophy above 80. Available ratings share compact rows, with RT critics,
+RT audience, and Metacritic labeled separately. Row breaks account for plot, review, metadata,
+and available text space; each rating stays together. Missing ratings and reviews are omitted.
+The slide displays one `Original language:` value when known and non-English. This is the movie's
+original language, not a list of spoken languages or a claim about subtitles in a particular viewing copy.
+Text uses Atkinson Hyperlegible Next with a bold title. Generated movie slides require a poster.
 
 ## Accepted movie inputs
 
@@ -90,13 +91,15 @@ not read it.
 
 ## Failure behavior
 
-Missing metadata has no minimum completeness threshold. Retrieval failures and unusable values
-produce source diagnostics while other information remains usable. A failed poster download leaves
-a text slide. When enrichment is unavailable, a title request can still produce a title-only slide;
-an identifier without a discoverable title prompts for a title. No missing value is invented.
+Optional metadata has no minimum completeness threshold. Missing ratings or descriptions produce
+source diagnostics while other information remains usable. Movie identity and a poster are required.
+If the primary poster is absent or fails, the tool tries alternative posters from the same movie's
+[TMDB images endpoint](https://developer.themoviedb.org/reference/movie-images). If none can be
+retrieved, generation stops with a poster error before writing a slide. No missing value is invented.
 
-Programmatic callers can construct `MovieData(title="Movie title")` and supply whichever optional
-fields are available. Absent scalar values use `None`, text uses empty strings, and lists are empty.
+The low-level builder can render explicitly supplied sparse `MovieData` for diagnostics; the normal
+single-movie and batch workflows require a poster. Absent scalar values use `None`, text uses empty
+strings, and lists are empty.
 Rating marks are derived from the available scores. Unknown years are omitted from titles and
 filenames. Original language is a single English display name.
 

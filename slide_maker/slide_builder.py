@@ -15,6 +15,7 @@ import pptx.enum.text
 # local repo modules
 import slide_maker.moviedata
 import slide_maker.emoji_marks
+import slide_maker.rating_layout
 
 
 TEMPLATE_TITLE_NAME = "movie_title"
@@ -27,6 +28,7 @@ SECONDARY_FONT_SIZE = pptx.util.Pt(19.2)
 PAGE_WIDTH = pptx.util.Cm(28.0)
 PAGE_HEIGHT = pptx.util.Cm(17.5)
 IMDB_SCORE_HIGHLIGHT = "F5C518"
+RATING_SEPARATOR = " | "
 
 
 class SlideBuildError(RuntimeError):
@@ -134,25 +136,57 @@ def add_text_paragraph(
 
 
 #============================================
-def add_imdb_paragraph(
-	text_frame: object,
+def rating_items(
 	movie_data: slide_maker.moviedata.MovieData,
-	level: int = 1,
+) -> list[tuple[str, str]]:
+	"""Assemble independent labeled facts with an optional highlighted score."""
+	items = []
+	if movie_data.imdb_rating is not None:
+		score = f"{movie_data.imdb_rating:.1f}"
+		text = f"IMDb {score}"
+		if movie_data.imdb_votes is not None:
+			text += f", {format_compact_count(movie_data.imdb_votes)} votes"
+		items.append((text, score))
+	elif movie_data.imdb_votes is not None:
+		items.append((f"IMDb: {format_compact_count(movie_data.imdb_votes)} votes", ""))
+	rt_mark, audience_mark, metascore_mark = format_rating_marks(movie_data)
+	if movie_data.rt_tomatometer is not None:
+		items.append((f"RT critics: {rt_mark} {movie_data.rt_tomatometer}%", ""))
+	if movie_data.rt_audience_score is not None:
+		items.append((f"RT audience: {audience_mark} {movie_data.rt_audience_score}%", ""))
+	if movie_data.metascore is not None:
+		items.append((f"Metacritic: {metascore_mark} {movie_data.metascore}", ""))
+	return items
+
+
+#============================================
+def add_rating_rows(
+	text_frame: object,
+	items: list[tuple[str, str]],
+	rows: list[list[int]],
+	level: int,
+	paragraph_properties: object,
 ) -> None:
-	"""Add the IMDb line with its score highlighted in brand yellow."""
-	paragraph = text_frame.add_paragraph() if text_frame.text else text_frame.paragraphs[0]
-	paragraph.level = level
-	add_styled_run(paragraph, "IMDB rating ", SECONDARY_FONT_SIZE)
-	score_run = add_styled_run(
-		paragraph,
-		f"{movie_data.imdb_rating:.1f}",
-		SECONDARY_FONT_SIZE,
-		True,
-	)
-	set_run_highlight(score_run, IMDB_SCORE_HIGHLIGHT)
-	if movie_data.imdb_votes is not None:
-		vote_text = format_compact_count(movie_data.imdb_votes)
-		add_styled_run(paragraph, f", {vote_text} votes", SECONDARY_FONT_SIZE)
+	"""Render chosen rows with atomic items and the IMDb highlight intact."""
+	for row in rows:
+		paragraph = text_frame.add_paragraph() if text_frame.text else text_frame.paragraphs[0]
+		paragraph._p.remove(paragraph._p.get_or_add_pPr())
+		paragraph._p.insert(0, copy.deepcopy(paragraph_properties))
+		paragraph.level = level
+		for position, index in enumerate(row):
+			if position:
+				add_styled_run(paragraph, RATING_SEPARATOR, SECONDARY_FONT_SIZE)
+			text, score = items[index]
+			# Nonbreaking spaces keep each label, mark, score and vote count together.
+			text = text.replace(" ", "\u00a0")
+			if not score:
+				add_styled_run(paragraph, text, SECONDARY_FONT_SIZE)
+				continue
+			before, score_text, after = text.partition(score)
+			add_styled_run(paragraph, before, SECONDARY_FONT_SIZE)
+			run = add_styled_run(paragraph, score_text, SECONDARY_FONT_SIZE, bold=True)
+			set_run_highlight(run, IMDB_SCORE_HIGHLIGHT)
+			add_styled_run(paragraph, after, SECONDARY_FONT_SIZE)
 
 
 #============================================
@@ -213,7 +247,9 @@ def fill_title(slide: object, movie_data: slide_maker.moviedata.MovieData) -> No
 	text_frame.vertical_anchor = pptx.enum.text.MSO_VERTICAL_ANCHOR.MIDDLE
 	text_frame.auto_size = pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 	title_text = movie_title(movie_data)
-	add_text_paragraph(text_frame, title_text, 0, TITLE_FONT_SIZE, True)
+	paragraph = text_frame.paragraphs[0]
+	paragraph.level = 0
+	add_styled_run(paragraph, title_text, TITLE_FONT_SIZE, bold=True)
 
 
 #============================================
@@ -221,37 +257,10 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 	"""Fill the named outline anchor with product labels and bullet hierarchy."""
 	outline_shape = shape_by_name(slide, TEMPLATE_OUTLINE_NAME)
 	require(outline_shape.has_text_frame, "Movie outline role has no text frame")
-	rt_mark, audience_mark, metascore_mark = format_rating_marks(movie_data)
 	text_frame = outline_shape.text_frame
-	text_frame.clear()
-	text_frame.word_wrap = True
-	text_frame.auto_size = pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-	if movie_data.plot:
-		add_text_paragraph(text_frame, movie_data.plot, 0, PRIMARY_FONT_SIZE, True)
 	rating_level = 1 if movie_data.plot else 0
-	if movie_data.imdb_rating is not None:
-		add_imdb_paragraph(text_frame, movie_data, rating_level)
-	elif movie_data.imdb_votes is not None:
-		votes = format_compact_count(movie_data.imdb_votes)
-		add_text_paragraph(
-			text_frame, f"IMDb: {votes} votes", rating_level,
-			SECONDARY_FONT_SIZE, not text_frame.text,
-		)
-	critics = []
-	if movie_data.rt_tomatometer is not None:
-		critics.append(f"RT {rt_mark} {movie_data.rt_tomatometer}%")
-	if movie_data.metascore is not None:
-		critics.append(f"MS {metascore_mark} {movie_data.metascore}")
-	if critics:
-		add_text_paragraph(
-			text_frame, "Critics: " + " / ".join(critics), rating_level,
-			SECONDARY_FONT_SIZE, not text_frame.text,
-		)
-	if movie_data.rt_audience_score is not None:
-		audience_text = f"Audience: {audience_mark} {movie_data.rt_audience_score}%"
-		add_text_paragraph(
-			text_frame, audience_text, rating_level, SECONDARY_FONT_SIZE, not text_frame.text,
-		)
+	body_properties = text_frame.paragraphs[0]._p.get_or_add_pPr()
+	rating_properties = text_frame.paragraphs[rating_level]._p.get_or_add_pPr()
 	details = []
 	if movie_data.genres:
 		details.append(f"Genre: {', '.join(movie_data.genres)}")
@@ -259,14 +268,40 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 		details.append(f"Director: {', '.join(movie_data.directors)}")
 	if movie_data.runtime_minutes is not None:
 		details.append(f"Run time: {movie_data.runtime_minutes} min")
-	if movie_data.original_language:
+	if movie_data.original_language and movie_data.original_language != "English":
 		details.append(f"Original language: {movie_data.original_language}")
 	if movie_data.rt_consensus.strip():
 		details.append(f"Review Summary: {movie_data.rt_consensus}")
+	items = rating_items(movie_data)
+	scale = 1.0
+	rows = []
+	if items:
+		metrics = slide_maker.rating_layout.TextMetrics(FONT_NAME)
+		body_texts = ([movie_data.plot] if movie_data.plot else []) + details
+		width = outline_shape.width - text_frame.margin_left - text_frame.margin_right
+		height = outline_shape.height - text_frame.margin_top - text_frame.margin_bottom
+		rows, scale = slide_maker.rating_layout.choose_rows(
+			[metrics.width(text, SECONDARY_FONT_SIZE.pt) for text, unused_score in items],
+			metrics.width(RATING_SEPARATOR, SECONDARY_FONT_SIZE.pt),
+			metrics.paragraphs(body_texts, PRIMARY_FONT_SIZE.pt),
+			metrics.width(" ", PRIMARY_FONT_SIZE.pt),
+			(width - int(body_properties.get("marL", "0"))) / 12700,
+			(width - int(rating_properties.get("marL", "0"))) / 12700,
+			height / 12700, PRIMARY_FONT_SIZE.pt, SECONDARY_FONT_SIZE.pt,
+		)
+	text_frame.clear()
+	text_frame.word_wrap = True
+	text_frame.auto_size = pptx.enum.text.MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+	if movie_data.plot:
+		add_text_paragraph(text_frame, movie_data.plot, 0, PRIMARY_FONT_SIZE, True)
+	add_rating_rows(text_frame, items, rows, rating_level, rating_properties)
 	for detail in details:
 		add_text_paragraph(
 			text_frame, detail, 0, PRIMARY_FONT_SIZE, not text_frame.text,
 		)
+	for paragraph in text_frame.paragraphs:
+		for run in paragraph.runs:
+			run.font.size = pptx.util.Pt(run.font.size.pt * scale)
 	if not text_frame.text:
 		slide.shapes._spTree.remove(outline_shape._element)
 
@@ -329,8 +364,8 @@ def append_movie_slide(presentation: object, movie_data: slide_maker.moviedata.M
 	clone_template_shapes(template_slide, new_slide)
 	new_slide._element.attrib.pop("show", None)
 	fill_title(new_slide, movie_data)
-	fill_outline(new_slide, movie_data)
 	place_poster(new_slide, movie_data)
+	fill_outline(new_slide, movie_data)
 	return new_slide
 
 
