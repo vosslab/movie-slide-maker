@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-10-21
+
+### Fixes and Maintenance
+
+- Resolve the rebase of local commit fac946b onto de8efb7. Its runtime changes already exist
+  in b3f76de; retain subsequent poster recovery, adaptive rating rows, non-English language
+  labels, bold titles, and the WebP screenshot gallery instead of reapplying older behavior.
+- Keep the newer E2E expectations, including omitted English-language labels, and preserve
+  the removal of the superseded Her PNG.
+
+### Developer Tests and Notes
+
+- All 759 pytest checks passed with Python 3.12 in a temporary environment containing the
+  declared dependencies. The system environment initially failed collection because imdbinfo
+  was absent; system packages were left unchanged. Git conflict and whitespace checks passed.
+
 ## 2026-10-16
 
 ### Behavior or Interface Changes
