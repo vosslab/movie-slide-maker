@@ -1,6 +1,7 @@
 # Tests
 
-This folder holds three test tiers, each with its own execution model. Pytest runs the fast lane under 1 second; the other two tiers run directly and may take longer.
+This folder holds three test tiers, each with its own execution model. Individual fast-lane tests
+should finish well under one second; the other two tiers run directly and may take longer.
 
 ## Layout
 
@@ -24,7 +25,7 @@ tests/
 
 ## How to run
 
-- Fast pytest lane: `pytest tests/`
+- Fast pytest lane: `source source_me.sh && pytest tests/`
 - Single browser test: `node tests/playwright/test_<name>.mjs` (TypeScript repos include `PLAYWRIGHT_USAGE.md` in their propagated `docs/` folder)
 - Single non-browser E2E: `bash tests/e2e/e2e_<name>.sh` or `source source_me.sh && python3 tests/e2e/e2e_<name>.py` (see [../docs/E2E_TESTS.md](../docs/E2E_TESTS.md))
 - Bulk non-browser E2E: `bash tests/e2e/run_all.sh` (if present; in the template repo the reset harness runner lives at `tests/meta/e2e/run_all.sh`)

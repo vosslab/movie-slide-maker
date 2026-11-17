@@ -94,8 +94,8 @@ The module writes `output_smoke/review_deck.odp` and one PNG per generated page 
 - `slide_maker/` contains provider, orchestration, builder, and conversion modules.
 - `output_smoke/review_deck.odp` is the generated multi-movie review artifact.
 - `output_smoke/visual_accept/her_2013.png` and
-  `output_smoke/visual_accept/her_2013_long_text.png` are generated M15 render evidence.
-- `output_smoke/review_deck_pages/slide_<NN>.png` is generated M18 page evidence.
+  `output_smoke/visual_accept/her_2013_long_text.png` are normal and long-text render evidence.
+- `output_smoke/review_deck_pages/slide_<NN>.png` contains rendered review-deck pages.
 - `output_smoke/adaptive_slides/adaptive_slides.odp` covers complete and sparse examples.
 - `output_smoke/example/her_2013.odp` is the illustrated documentation example, using fixed
   example ratings rather than a live provider snapshot.

@@ -15,12 +15,22 @@
 
 ### Fixes and Maintenance
 
+- Complete six independent repository audit passes and record unresolved provider error/identity
+  findings in `docs/active_plans/audits/repository_audit_2026_11_17.md`.
+- Correct stale subprocess, multi-slide, Python setup, test timing, and render-evidence wording.
+- Prune three duplicate or mock-heavy E2E runners, injected orchestration machinery, and
+  incidental layout/default assertions. Retain actual-request batch accounting and order,
+  identity/poster checks, provider integrations, and real rendering acceptance. Test code is
+  935 lines smaller; vendored checks and support remain unchanged.
 - Keep human guidance in short bullets; move the detailed adaptive-rating layout decision
   and its reasoning into DESIGN_DECISIONS.md.
 - Synchronized shared style guides, tests, and repository support files from the starter template.
 
 ### Developer Tests and Notes
 
+- After pruning, all 1,198 collected checks passed in 2.51 seconds; 14 focused behavior checks
+  and the retained headless guidance E2E passed. Diff checks are clean and no bytecode caches
+  remain. Every live provider and the full live review deck were not rerun for this audit.
 - The fast suite passed 802 checks before concurrent repository maintenance; final focused
   parser, optional-metadata, and rating checks passed 13 tests. A subsequent full-suite attempt
   stopped during collection because LICENSE.MIT.md had been removed while a hygiene test

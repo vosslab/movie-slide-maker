@@ -1,145 +1,132 @@
 # Movie Slide Maker
 
-Make an editable movie deck for a film club, classroom, presentation, or movie night. Enter a title to gather a poster, plot, ratings, and available parental guidance.
+Turn a movie title into an editable deck for a classroom, film club, or movie night. Gather the poster, plot, review ratings, and parental guidance, then adapt the slides in LibreOffice Impress.
 
-Introduce a film, start a discussion, or help a group choose what to watch without collecting details
-from several websites. Open the finished slide in LibreOffice Impress to edit it for your audience.
-Once installed, making a slide means running a command and entering a movie; you do not write code.
-The current setup requires a Mac and some Terminal steps, described below.
+## See the finished slides
 
-## Screenshots
-
-Click any preview to see the full-size slide. These live examples from 2026-10-16 show different
-amounts of plot, ratings, and review text. Parasite shows the Korean original-language label;
-A Ghost Waits has no Metascore or review summary.
-Posters come from TMDB. Ratings and provider coverage can change.
+One movie, several useful views. The Jurassic Park examples below show the summary with its TMDB
+link, the Common Sense Media overview and category ratings, and selected IMDb guidance.
+Click any preview for the full-size image.
 
 <!-- screenshots:begin (managed by screenshot-docs) -->
 <table>
   <tr>
-    <td width="50%">
-      <a href="docs/screenshots/movie_slide_her.webp"><img src="docs/screenshots/movie_slide_her.webp" width="400" alt="Her slide with poster, compact ratings, and review summary"></a><br>
-      Her (2013)
-    </td>
-    <td width="50%">
-      <a href="docs/screenshots/movie_slide_cooties.webp"><img src="docs/screenshots/movie_slide_cooties.webp" width="400" alt="Cooties slide with poster, plot, and critic and audience ratings"></a><br>
-      Cooties (2014)
-    </td>
+    <td width="50%"><a href="docs/screenshots/movie_slide_jurassic_park.webp"><img src="docs/screenshots/movie_slide_jurassic_park.webp" width="400" alt="Jurassic Park summary with poster, review ratings, and a clickable TMDB footer"></a><br><strong>Movie summary</strong></td>
+    <td width="50%"><a href="docs/screenshots/guidance_csm_overview.webp"><img src="docs/screenshots/guidance_csm_overview.webp" width="400" alt="Jurassic Park CSM age guidance and overview in editable slide text"></a><br><strong>CSM overview</strong></td>
   </tr>
   <tr>
-    <td width="50%">
-      <a href="docs/screenshots/movie_slide_parasite.webp"><img src="docs/screenshots/movie_slide_parasite.webp" width="400" alt="Parasite slide with poster, ratings, and Korean original-language label"></a><br>
-      Parasite (2019)
-    </td>
-    <td width="50%">
-      <a href="docs/screenshots/movie_slide_a_ghost_waits.webp"><img src="docs/screenshots/movie_slide_a_ghost_waits.webp" width="400" alt="A Ghost Waits slide with poster and ratings, omitting missing Metascore and summary"></a><br>
-      A Ghost Waits (2020)
-    </td>
+    <td width="50%"><a href="docs/screenshots/guidance_csm_categories.webp"><img src="docs/screenshots/guidance_csm_categories.webp" width="400" alt="CSM warning and positive-content tables with separate ratings"></a><br><strong>CSM categories</strong></td>
+    <td width="50%"><a href="docs/screenshots/guidance_imdb.webp"><img src="docs/screenshots/guidance_imdb.webp" width="400" alt="IMDb content categories with colored severity labels and selected examples"></a><br><strong>IMDb guidance</strong></td>
+  </tr>
+</table>
+
+<p><strong>More movies, the same workflow.</strong> Crowded ratings, a non-English original language, and different provider coverage.</p>
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/movie_slide_her.webp"><img src="docs/screenshots/movie_slide_her.webp" width="400" alt="Her summary slide with poster and ratings arranged around the available text"></a><br><strong>Her (2013)</strong></td>
+    <td width="50%"><a href="docs/screenshots/movie_slide_cooties.webp"><img src="docs/screenshots/movie_slide_cooties.webp" width="400" alt="Cooties summary slide with poster, plot, and labeled review scores"></a><br><strong>Cooties (2014)</strong></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/movie_slide_parasite.webp"><img src="docs/screenshots/movie_slide_parasite.webp" width="400" alt="Parasite summary slide showing its Korean original-language label"></a><br><strong>Parasite (2019)</strong></td>
+    <td width="50%"><a href="docs/screenshots/movie_slide_a_ghost_waits.webp"><img src="docs/screenshots/movie_slide_a_ghost_waits.webp" width="400" alt="A Ghost Waits summary slide using available provider information"></a><br><strong>A Ghost Waits (2020)</strong></td>
   </tr>
 </table>
 <!-- screenshots:end -->
 
-## From movie title to slide
+The text and tables remain editable in the ODP. Copy individual slides into a lecture or club
+presentation; the 28 by 17.5 cm page size and Atkinson Hyperlegible Next font match the teaching
+template.
 
-Use a slide to introduce a screening, compare films for a club, add context to a talk, or share a
-recommendation. The same layout works with a full set of ratings or just the details available.
+## From title to screening
 
-- Find a movie by title and year, or paste its IMDb or TMDB link.
-- Bring together poster art, plot, genre, director, running time, and a clickable TMDB source link.
-- Compare available IMDb, Rotten Tomatoes, and Metacritic scores, with critic and audience ratings labeled.
-- Show the original language for non-English films when known.
-- Add Common Sense Media and IMDb Parents' Guide slides when their sources are available.
-- Keep an explicit unavailable-source note when parental guidance cannot be retrieved.
-- Edit the finished slide in LibreOffice Impress and copy it into your presentation.
+- **Introduce the film:** poster, plot, director, genres, running time, and available review scores.
+- **Prepare the audience:** CSM age guidance, warning and positive-content ratings, and IMDb examples.
+- **Keep sources distinct:** IMDb, Rotten Tomatoes, and Metacritic stay labeled; guidance scales
+  retain their provider's meaning.
+- **Make it yours:** edit native slide text and tables, follow the source links, or copy pages into
+  an existing deck.
 
-Each deck starts with a bold, centered movie summary, ratings, poster, and TMDB link. It then adds
-an editable Common Sense Media overview, category tables, and an IMDb Parents' Guide table when
-the relevant sources are available. Ratings use separate rows when space allows and share rows on
-crowded slides. Text uses Atkinson Hyperlegible Next on a 28 by 17.5 cm slide. The layout comes from
-[`template/movie_slide_template.pptx`](template/movie_slide_template.pptx).
+Ratings adapt to the space available. Non-English original languages are named when known.
+Absent facts are omitted, and handled guidance-source failures produce an explicit notice rather
+than an assurance that the film contains no upsetting material.
 
 ## Quick start
 
-First, follow [docs/INSTALL.md](docs/INSTALL.md) to install Python 3.12, LibreOffice, the font, and
-the other requirements, then add your TMDB access token (the credential used to retrieve movie details).
-After this one-time setup, open Terminal in the downloaded project folder and run:
+The current setup targets **macOS, Python 3.12, and LibreOffice Still**. Follow
+[docs/INSTALL.md](docs/INSTALL.md) for the dependencies, Atkinson Hyperlegible Next font, and your
+TMDB v4 read token. Once installed, you do not need to write code.
+
+Live websites can change or block requests. Some guidance error paths still need hardening;
+the [repository audit](docs/active_plans/audits/repository_audit_2026_11_17.md) records the known
+limitations. Review source guidance before a screening. A usable poster is required; alternate
+TMDB posters are tried if the primary image fails.
+
+Open Terminal in the project folder:
 
 ```bash
 source source_me.sh
 python3 make_movie_slide.py
 ```
 
-At the movie prompt, enter `Her (2013)`. If several matches appear, choose the intended movie from
-the numbered list. You can also enter `tmdb:152601` to select this film directly.
-When the command finishes, open `her_2013.odp` in the project folder with LibreOffice Impress.
-You now have an editable movie deck to use or copy into another presentation.
+At the prompt, enter:
 
-You can also enter an IMDb URL such as `https://www.imdb.com/title/tt0316654/` for Spider-Man 2;
-see [docs/USAGE.md](docs/USAGE.md) for the supported input forms.
+```text
+tt0107290
+```
 
-## Build the review deck
+This selects Jurassic Park directly. A title such as `Jurassic Park (1993)`, an IMDb URL, or a TMDB
+URL also works; an ambiguous title opens a numbered selection menu.
 
-The permanent batch entry needs no terminal input. It resolves five built-in movies through the
-same live provider and presentation path:
+The result is **`jurassic_park_1993.odp`** in the project folder. Open it in LibreOffice Impress:
+the summary comes first, followed by the available parental-guidance pages. Longer guide tables
+continue onto another slide so the text stays readable.
+
+## Where the information comes from
+
+| Source | What it adds |
+| --- | --- |
+| TMDB | Poster, plot, title, year, genres, runtime, director, original language, and movie link |
+| IMDb | Review score, vote count, and Parents' Guide severity labels and examples |
+| Rotten Tomatoes | Critics' Tomatometer, audience Popcornmeter, and critics consensus |
+| Metacritic | Metascore |
+| Common Sense Media | Recommended age, overview, warning categories, and positive-content categories |
+
+Posters come from TMDB. Guidance providers keep separate slides and rating scales. A missing
+language does not imply English, and an original-language label says nothing about subtitles or
+dubbing in your viewing copy.
+
+## Compare several films
+
+Build the example review deck without terminal input:
 
 ```bash
 source source_me.sh && python3 -m slide_maker.review_deck < /dev/null
 ```
 
-The default order is `Her (2013)`, `Cooties (2014)`, `It (2017)`, `Parasite (2019)`, and
-`A Ghost Waits (2020)`. Missing provider data reduces the content of a slide without excluding the
-movie. The products are `output_smoke/review_deck.odp` and retained page PNGs under
-`output_smoke/review_deck_pages/`.
+It requests Her (2013), Cooties (2014), It (2017), Parasite (2019), and A Ghost Waits (2020), in that
+order. Each accepted movie gets a summary and its available guidance pages.
 
-## Live data contract
+Open `output_smoke/review_deck.odp`; per-page PNGs are in
+`output_smoke/review_deck_pages/`. Full input forms, outputs, and failure behavior are in
+[docs/USAGE.md](docs/USAGE.md).
 
-The finished workflow uses current data gathered during each run:
+## Find your next step
 
-| Source | Available information |
+| I want to... | Read |
 | --- | --- |
-| TMDB | Title, year, plot, genres, runtime, director, original language, ids, and poster |
-| IMDb | Rating, vote count, and available Parents' Guide categories and selected non-spoiler examples |
-| Rotten Tomatoes | Tomatometer, Popcornmeter, and critics consensus |
-| Metacritic | Metascore and display band |
-| Common Sense Media | Recommended age, overview, warning categories, and positive-content categories |
+| Install the tools and add a TMDB token | [docs/INSTALL.md](docs/INSTALL.md) |
+| Try another input or understand the output | [docs/USAGE.md](docs/USAGE.md) |
+| Understand the slide design preferences | [docs/HUMAN_GUIDANCE.md](docs/HUMAN_GUIDANCE.md) |
+| Run integration checks | [docs/E2E_TESTS.md](docs/E2E_TESTS.md) |
+| See recent changes | [docs/CHANGELOG.md](docs/CHANGELOG.md) |
+| Learn about the maintainer | [docs/AUTHORS.md](docs/AUTHORS.md) |
 
-TMDB access requires a v4 read token. Copy `tmdb_key_sample.yml` to the ignored `tmdb_key.yml` and
-replace the placeholder with your token before running live provider or pipeline work. Provider
-requests share one polite HTTP policy with browser-like headers, randomized delay, timeout, and a
-bounded retry for HTTP 403 or 429.
-
-## Project status and limits
-
-- Live verification on 2026-10-16 produced all five default movies, including a slide without a
-  Metascore or review summary.
-- Missing metadata is omitted; unavailable language data does not imply English or subtitles.
-- Missing parental guidance is identified in the finished deck; it does not mean a movie has no
-  potentially upsetting material.
-- A poster is required. If the primary TMDB poster fails, alternate posters are tried; if none
-  can be retrieved, that movie stops with an error.
-- The repository currently targets macOS, Python 3.12, LibreOffice Still, and Atkinson Hyperlegible Next.
-- Live provider markup and values can change. Direct E2E scripts validate identity, available fields,
-  and plausible ranges instead of freezing current ratings.
-- `SLIDE_ARTIFACTS/` is ignored local material for planning and comparison. It is not distributed or
-  required at runtime; the extracted template is committed instead.
-
-Generated acceptance evidence includes normal and long-text renders at
-`output_smoke/visual_accept/her_2013.png` and
-`output_smoke/visual_accept/her_2013_long_text.png`, plus the live review deck and its per-page PNGs.
-
-## Documentation
-
-- [docs/INSTALL.md](docs/INSTALL.md) - Python, LibreOffice, Poppler, font, and token setup.
-- [docs/USAGE.md](docs/USAGE.md) - single-movie input forms, batch execution, outputs, and failures.
-- [docs/HUMAN_GUIDANCE.md](docs/HUMAN_GUIDANCE.md) - metadata, language, and typography principles.
-- [docs/E2E_TESTS.md](docs/E2E_TESTS.md) - integration checks and execution model.
-- [docs/CHANGELOG.md](docs/CHANGELOG.md) - changes and dated verification evidence.
-- [docs/AUTHORS.md](docs/AUTHORS.md) - maintainer background and project context.
-
-For implementation history, see the
-[archived plan](docs/archive/movie_slide_generator_plan.md) and
-[source probe report](docs/active_plans/audits/movie_source_probe_report.md).
+The runtime design comes from [template/movie_slide_template.pptx](template/movie_slide_template.pptx).
+The [archived plan](docs/archive/movie_slide_generator_plan.md) and
+[source probe report](docs/active_plans/audits/movie_source_probe_report.md) preserve development
+context. `SLIDE_ARTIFACTS/` is local comparison material, not a runtime dependency.
 
 ## License
 
-This software is available under the [MIT License](LICENSE.MIT).
+The software is available under the [MIT License](LICENSE.MIT).

@@ -7,7 +7,7 @@ Atkinson Hyperlegible Next font used by the presentation template.
 ## Requirements
 
 - macOS with Bash and Homebrew.
-- Python 3.12, pinned by the repository environment.
+- Python 3.12. Confirm the active interpreter with `source source_me.sh && python3 --version`.
 - LibreOffice Still for PPTX-to-ODP conversion.
 - Poppler for PDF inspection and PNG page rendering.
 - Atkinson Hyperlegible Next installed as a macOS system font.

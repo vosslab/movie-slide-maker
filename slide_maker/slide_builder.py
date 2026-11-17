@@ -416,7 +416,7 @@ def build_movie_presentation(
 	template_path: pathlib.Path,
 	output_path: pathlib.Path,
 ) -> pathlib.Path:
-	"""Load the extracted template, append one movie slide, and save the PPTX."""
+	"""Load the extracted template, append a movie section, and save the PPTX."""
 	require(template_path.is_file(), f"Movie slide template is absent: {template_path}")
 	presentation = pptx.Presentation(template_path)
 	append_movie_section(presentation, movie_data)

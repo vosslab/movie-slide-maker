@@ -21,7 +21,7 @@ def convert_document(
 		profile_directory: Isolated LibreOffice user-profile directory.
 
 	Returns:
-		The completed platform launch process with captured text output.
+		The completed soffice process with captured text output.
 
 	Raises:
 		ValueError: The output format is empty.

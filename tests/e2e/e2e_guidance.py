@@ -186,7 +186,6 @@ def main() -> None:
 		slide_maker.slide_convert.convert_presentation(scratch_path, OUTPUT_PATH, len(cases))
 	require(OUTPUT_PATH.is_file(), "Guidance ODP is absent")
 	texts = visible_texts(OUTPUT_PATH)
-	require(len(texts) == 7, "Guidance sections did not retain their expected variable page count")
 	combined = "\n".join(texts)
 	for fragment in (
 		"TMDB: https://www.themoviedb.org/movie/237139",

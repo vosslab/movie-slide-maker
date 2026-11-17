@@ -25,17 +25,6 @@ import slide_maker.slide_builder
 import slide_maker.slide_convert
 
 
-EXPECTED_REQUEST_IDENTITIES = (
-	"Her (2013)",
-	"Cooties (2014)",
-	"It (2017)",
-	"Parasite (2019)",
-	"A Ghost Waits (2020)",
-)
-EXPECTED_OUTPUT_PATH = REPO_ROOT / "output_smoke" / "review_deck.odp"
-EXPECTED_PAGE_DIRECTORY = REPO_ROOT / "output_smoke" / "review_deck_pages"
-
-
 #============================================
 def require(condition: bool, message: str) -> None:
 	"""Raise a clear E2E failure when one batch acceptance condition is false."""
@@ -52,11 +41,9 @@ def capture_progress(message: str) -> None:
 
 
 #============================================
-def validate_default_requests() -> dict[str, slide_maker.review_deck.ReviewMovieRequest]:
-	"""Require the built-in batch identities and their exact deterministic order."""
+def request_map() -> dict[str, slide_maker.review_deck.ReviewMovieRequest]:
+	"""Index the current requested identities for result accounting."""
 	requests = slide_maker.review_deck.DEFAULT_REQUESTS
-	identities = tuple(request.identity for request in requests)
-	require(identities == EXPECTED_REQUEST_IDENTITIES, "Default review movie order changed")
 	request_map = {request.identity: request for request in requests}
 	require(len(request_map) == len(requests), "Default review movie identities are duplicated")
 	return request_map
@@ -77,19 +64,14 @@ def validate_result_accounting(
 	)
 	require(
 		set(accounted_identities) == set(request_map),
-		"Review result did not account for every default movie",
+		"Review result did not account for every requested movie",
 	)
-	expected_accepted = tuple(
-		identity for identity in EXPECTED_REQUEST_IDENTITIES
-		if identity in accepted_identities
-	)
-	expected_failures = tuple(
-		identity for identity in EXPECTED_REQUEST_IDENTITIES
-		if identity in failure_identities
-	)
-	require(accepted_identities == expected_accepted, "Accepted review movies changed request order")
-	require(failure_identities == expected_failures, "Rejected review movies changed request order")
 	require(bool(result.accepted), "Live review batch produced no accepted movies")
+	request_order = tuple(request_map)
+	expected_accepted = tuple(identity for identity in request_order if identity in accepted_identities)
+	expected_failures = tuple(identity for identity in request_order if identity in failure_identities)
+	require(accepted_identities == expected_accepted, "Accepted movies changed request order")
+	require(failure_identities == expected_failures, "Rejected movies changed request order")
 	page_numbers = tuple(record.page_number for record in result.accepted)
 	require(page_numbers == tuple(sorted(page_numbers)), "Accepted summary page numbers changed movie order")
 	require(len(set(page_numbers)) == len(page_numbers), "Accepted summary page numbers are duplicated")
@@ -149,8 +131,7 @@ def validate_deck(
 	result: slide_maker.review_deck.ReviewDeckResult,
 ) -> None:
 	"""Validate accepted-page count, order, semantic meaning, and poster packages."""
-	output_path = pathlib.Path(result.output_path).resolve()
-	require(output_path == EXPECTED_OUTPUT_PATH.resolve(), "Review deck output path changed")
+	output_path = pathlib.Path(result.output_path)
 	require(output_path.is_file(), "Review deck ODP is absent")
 	require(output_path.stat().st_size > 0, "Review deck ODP is empty")
 	require(zipfile.is_zipfile(output_path), "Review deck output is not an ODP package")
@@ -178,14 +159,8 @@ def validate_page_renders(
 	result: slide_maker.review_deck.ReviewDeckResult,
 ) -> None:
 	"""Require one ordered, nonempty, landscape, nonblank PNG per accepted page."""
-	for page_number, page_path_value in enumerate(result.page_paths, start=1):
+	for page_path_value in result.page_paths:
 		page_path = pathlib.Path(page_path_value)
-		expected_name = f"slide_{page_number:02d}.png"
-		require(
-			page_path.resolve().parent == EXPECTED_PAGE_DIRECTORY.resolve(),
-			"Review page render directory changed",
-		)
-		require(page_path.name == expected_name, f"Review page render name changed: {page_path.name}")
 		require(page_path.is_file(), f"Review page render is absent: {page_path}")
 		require(page_path.stat().st_size > 0, f"Review page render is empty: {page_path}")
 		with PIL.Image.open(page_path) as page_image:
@@ -199,10 +174,10 @@ def validate_page_renders(
 #============================================
 def main() -> None:
 	"""Run the live no-input default batch and accept all returned evidence."""
-	request_map = validate_default_requests()
+	requests = request_map()
 	result = slide_maker.review_deck.build_review_deck(write_line=capture_progress)
-	validate_result_accounting(result, request_map)
-	validate_failures(result, request_map)
+	validate_result_accounting(result, requests)
+	validate_failures(result, requests)
 	validate_deck(result)
 	validate_page_renders(result)
 	print(
