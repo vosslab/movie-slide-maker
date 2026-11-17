@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-11-17
+
+### Additions and New Features
+
+- Generate available Common Sense Media and IMDb Parents' Guide slides after each movie summary,
+  using editable source-linked tables and selected non-spoiler examples.
+- Add a clickable TMDB record link to the footer of each generated movie summary slide.
+
+### Behavior or Interface Changes
+
+- Continue publishing a movie deck when parental guidance sources are unavailable, and identify
+  the missing guide visibly rather than treating missing data as a no-content advisory.
+
+### Fixes and Maintenance
+
+- Keep human guidance in short bullets; move the detailed adaptive-rating layout decision
+  and its reasoning into DESIGN_DECISIONS.md.
+- Synchronized shared style guides, tests, and repository support files from the starter template.
+
+### Developer Tests and Notes
+
+- The fast suite passed 802 checks before concurrent repository maintenance; final focused
+  parser, optional-metadata, and rating checks passed 13 tests. A subsequent full-suite attempt
+  stopped during collection because LICENSE.MIT.md had been removed while a hygiene test
+  still referenced it.
+- Real headless conversion and visual review passed for the live five-page Jurassic Park deck
+  and a seven-page synthetic deck covering continuation and unavailable-guidance pages.
+  Text, tables, source links, page order, and geometry survived ODP conversion.
+- Invoke LibreOffice directly with `soffice --headless --norestore --convert-to`, using an
+  isolated profile and running outside the agent sandbox on this macOS host.
+
 ## 2026-10-21
 
 ### Fixes and Maintenance
@@ -105,7 +136,7 @@
   link validation passed for all three edited documents, and managed-block idempotence passed.
   The tracked-link gate remains pending inclusion of the new screenshot in Git; nothing was staged.
 - Remaining documentation follow-up: the maintainer should replace the existing Author Name
-  placeholder in [LICENSE.MIT.md](../LICENSE.MIT.md) with the confirmed copyright holder.
+  placeholder in `LICENSE.MIT.md` with the confirmed copyright holder.
   Verify the attribution with the owner; the README's MIT license label matches the license text.
 
 ## 2026-10-15

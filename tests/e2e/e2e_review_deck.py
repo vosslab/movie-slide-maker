@@ -91,9 +91,9 @@ def validate_result_accounting(
 	require(failure_identities == expected_failures, "Rejected review movies changed request order")
 	require(bool(result.accepted), "Live review batch produced no accepted movies")
 	page_numbers = tuple(record.page_number for record in result.accepted)
-	expected_page_numbers = tuple(range(1, len(result.accepted) + 1))
-	require(page_numbers == expected_page_numbers, "Accepted review page numbers are not contiguous")
-	require(len(result.page_paths) == len(result.accepted), "Accepted and rendered page counts differ")
+	require(page_numbers == tuple(sorted(page_numbers)), "Accepted summary page numbers changed movie order")
+	require(len(set(page_numbers)) == len(page_numbers), "Accepted summary page numbers are duplicated")
+	require(len(result.page_paths) == result.page_count, "Rendered page accounting differs from page count")
 
 
 #============================================
@@ -158,11 +158,16 @@ def validate_deck(
 		content_root = slide_maker.slide_convert.parse_xml(archive, "content.xml")
 		styles_root = slide_maker.slide_convert.parse_xml(archive, "styles.xml")
 		pages = slide_maker.slide_convert.movie_pages(content_root, len(result.accepted))
-		require(len(pages) == len(result.page_paths), "ODP, accepted, and PNG page counts differ")
+		visible_pages = slide_maker.slide_convert.visible_pages(content_root)
+		require(len(visible_pages) == len(result.page_paths), "ODP and PNG page counts differ")
 		page_titles = []
 		for page, record in zip(pages, result.accepted, strict=True):
 			slide_maker.slide_convert.validate_page_size(page, styles_root)
 			validate_page_semantics(archive, page, record)
+			require(
+				visible_pages[record.page_number - 1] is page,
+				"Accepted summary page number does not point to its movie slide",
+			)
 			page_titles.append(f"{record.title} ({record.year})")
 	for title in page_titles:
 		require(page_titles.count(title) == 1, f"Accepted movie occurs more than once: {title}")
@@ -173,9 +178,9 @@ def validate_page_renders(
 	result: slide_maker.review_deck.ReviewDeckResult,
 ) -> None:
 	"""Require one ordered, nonempty, landscape, nonblank PNG per accepted page."""
-	for record, page_path_value in zip(result.accepted, result.page_paths, strict=True):
+	for page_number, page_path_value in enumerate(result.page_paths, start=1):
 		page_path = pathlib.Path(page_path_value)
-		expected_name = f"slide_{record.page_number:02d}.png"
+		expected_name = f"slide_{page_number:02d}.png"
 		require(
 			page_path.resolve().parent == EXPECTED_PAGE_DIRECTORY.resolve(),
 			"Review page render directory changed",

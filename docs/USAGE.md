@@ -1,7 +1,8 @@
 # Usage
 
-Movie Slide Maker resolves one movie across TMDB, IMDb, Rotten Tomatoes, and Metacritic, then fills
-the committed teaching template and writes a semantically validated ODP presentation.
+Movie Slide Maker resolves one movie across TMDB, IMDb, Rotten Tomatoes, Metacritic, and available
+parental-guidance sources, then fills the committed teaching template and writes a semantically
+validated ODP presentation.
 
 ## Quick start
 
@@ -22,7 +23,7 @@ Available movie data assembled; building the presentation...
 Created movie slide: spider_man_2_2004.odp
 ```
 
-The resulting `spider_man_2_2004.odp` is a standalone one-movie deck in the repository root. Its
+The resulting `spider_man_2_2004.odp` is a standalone movie deck in the repository root. Its
 scratch PPTX is removed after the ODP passes semantic validation. Generated slides use the lecture
 deck's exact 28 by 17.5 cm page size, so copying a slide into that deck does not require scaling.
 
@@ -35,6 +36,18 @@ are omitted.
 The slide displays one `Original language:` value when known and non-English. This is the movie's
 original language, not a list of spoken languages or a claim about subtitles in a particular viewing copy.
 Text uses Atkinson Hyperlegible Next with a bold title. Generated movie slides require a poster.
+The first slide includes an editable, clickable link to the resolved TMDB movie record.
+
+## Parental guidance
+
+Each generated deck adds available parental guidance after the movie summary. Common Sense Media
+contributes a brief overview and editable warning and positive-content tables. IMDb contributes an
+editable Parents' Guide table with category severity and selected non-spoiler examples. The guide
+slides link to their source pages and keep the providers' scales distinct.
+
+The source text is brief guidance, not a complete content inventory. If a guide is blocked, absent,
+or fails identity checks, the deck retains every other available slide and clearly identifies the
+missing source. A missing guide never means that a film has no potentially upsetting material.
 
 ## Accepted movie inputs
 
@@ -65,11 +78,11 @@ With no arguments, the module resolves this exact built-in list in order:
 4. `Parasite (2019)`
 5. `A Ghost Waits (2020)`
 
-Each movie becomes a page using its available information. Source omissions are reported in the
-console and do not exclude a movie. An unresolved ambiguity still needs clarification; the batch
-reports that request without choosing a different movie.
+Each movie becomes a summary page followed by its available guidance pages. Source omissions are
+reported in the console and the deck without excluding the movie. An unresolved ambiguity still
+needs clarification; the batch reports that request without choosing a different movie.
 
-The module writes `output_smoke/review_deck.odp` and one PNG per accepted page under
+The module writes `output_smoke/review_deck.odp` and one PNG per generated page under
 `output_smoke/review_deck_pages/`.
 
 ## Inputs and outputs
@@ -104,13 +117,16 @@ strings, and lists are empty.
 Rating marks are derived from the available scores. Unknown years are omitted from titles and
 filenames. Original language is a single English display name.
 
+Parental-guidance retrieval is optional after movie identity has been confirmed. A blocked,
+unavailable, or mismatched guidance page produces a source diagnostic and an explicit deck note;
+it does not stop movie-slide generation.
+
 Conversion checks that the included content survives into the ODP. If LibreOffice conversion or
 ODP validation fails, the scratch PPTX remains available for diagnosis and no validated ODP is
 published. Configuration errors and unexpected programming errors remain visible.
 
-On macOS, the converter launches LibreOffice through LaunchServices in headless mode. This avoids
-the intermittent AppKit registration abort and visible crash dialog caused by starting the
-application binary directly.
+The converter invokes `soffice --headless --norestore --convert-to` with an isolated profile.
+On this macOS host, run conversion commands outside the agent sandbox.
 
 Live ratings, canonical provider URLs, and source markup can change between runs. The program checks
 current identity and required meaning instead of expecting old rating values.

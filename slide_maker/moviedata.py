@@ -6,6 +6,7 @@ import dataclasses
 
 # local repo modules
 import slide_maker.emoji_marks
+import slide_maker.parental_guidance
 
 
 @dataclasses.dataclass
@@ -30,6 +31,7 @@ class MovieData:
 	metascore_band: str | None = None
 	poster_path: str | None = None
 	original_language: str | None = None
+	guidance: slide_maker.parental_guidance.ParentalGuidance | None = None
 
 
 #============================================

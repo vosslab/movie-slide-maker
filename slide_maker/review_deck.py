@@ -68,6 +68,7 @@ class ReviewDeckResult:
 	accepted: tuple[ReviewDeckAccepted, ...]
 	failures: tuple[ReviewDeckFailure, ...]
 	page_paths: tuple[pathlib.Path, ...]
+	page_count: int
 
 
 DEFAULT_REQUESTS = (
@@ -219,8 +220,8 @@ def build_scratch_deck(
 	accepted_movies: list[tuple[ReviewMovieRequest, slide_maker.moviedata.MovieData]],
 	template_path: pathlib.Path,
 	scratch_path: pathlib.Path,
-) -> pathlib.Path:
-	"""Append all accepted movies to one template-backed presentation."""
+) -> tuple[pathlib.Path, tuple[int, ...]]:
+	"""Append complete movie sections and return their one-based summary pages."""
 	require(template_path.is_file(), f"Movie slide template is absent: {template_path}")
 	presentation = pptx.Presentation(template_path)
 	for request, movie_data in accepted_movies:
@@ -230,10 +231,20 @@ def build_scratch_deck(
 			and movie_data.year == request.year,
 			f"Accepted movie identity changed before build: {request.identity}",
 		)
-		slide_maker.slide_builder.append_movie_slide(presentation, movie_data)
+		slide_maker.slide_builder.append_movie_section(presentation, movie_data)
 	scratch_path.parent.mkdir(parents=True, exist_ok=True)
 	presentation.save(scratch_path)
-	return scratch_path
+	summary_pages = []
+	visible_page_number = 0
+	for slide in presentation.slides:
+		if slide._element.get("show") == "0":
+			continue
+		visible_page_number += 1
+		roles = {shape.name for shape in slide.shapes}
+		if slide_maker.slide_builder.TEMPLATE_TITLE_NAME in roles:
+			summary_pages.append(visible_page_number)
+	result = tuple(summary_pages)
+	return scratch_path, result
 
 
 #============================================
@@ -436,7 +447,9 @@ def build_review_deck(
 		)
 		require(bool(accepted_movies), "Review deck has no usable movie titles")
 		scratch_path = work_directory / "review_deck.pptx"
-		build_scratch_deck(accepted_movies, template_path, scratch_path)
+		unused_scratch_path, summary_pages = build_scratch_deck(
+			accepted_movies, template_path, scratch_path,
+		)
 		staged_product_path = work_directory / "review_deck.odp"
 		slide_maker.slide_convert.convert_presentation(
 			scratch_path,
@@ -445,10 +458,11 @@ def build_review_deck(
 		)
 		validate_deck_identities(staged_product_path, accepted_movies)
 		staged_page_directory = work_directory / "review_deck_pages"
+		visible_count = len(slide_maker.slide_convert.source_visible_shape_sets(scratch_path))
 		staged_page_paths = render_deck_pages(
 			staged_product_path,
 			staged_page_directory,
-			len(accepted_movies),
+			visible_count,
 		)
 		page_paths = publish_artifacts(
 			staged_product_path,
@@ -458,9 +472,9 @@ def build_review_deck(
 		)
 	accepted = tuple(
 		ReviewDeckAccepted(request.identity, movie_data.title, movie_data.year, page_number)
-		for page_number, (request, movie_data) in enumerate(accepted_movies, start=1)
+		for page_number, (request, movie_data) in zip(summary_pages, accepted_movies, strict=True)
 	)
-	result = ReviewDeckResult(product_path, accepted, tuple(failures), page_paths)
+	result = ReviewDeckResult(product_path, accepted, tuple(failures), page_paths, len(page_paths))
 	return result
 
 

@@ -1,6 +1,6 @@
 # Movie Slide Maker
 
-Make a movie summary slide for a film club, classroom, presentation, or movie night. Enter a title to gather the poster, plot, and ratings into one editable slide.
+Make an editable movie deck for a film club, classroom, presentation, or movie night. Enter a title to gather a poster, plot, ratings, and available parental guidance.
 
 Introduce a film, start a discussion, or help a group choose what to watch without collecting details
 from several websites. Open the finished slide in LibreOffice Impress to edit it for your audience.
@@ -45,15 +45,17 @@ Use a slide to introduce a screening, compare films for a club, add context to a
 recommendation. The same layout works with a full set of ratings or just the details available.
 
 - Find a movie by title and year, or paste its IMDb or TMDB link.
-- Bring together poster art, plot, genre, director, and running time.
+- Bring together poster art, plot, genre, director, running time, and a clickable TMDB source link.
 - Compare available IMDb, Rotten Tomatoes, and Metacritic scores, with critic and audience ratings labeled.
 - Show the original language for non-English films when known.
-- Leave out unavailable details so the slide stays useful when a source has gaps.
+- Add Common Sense Media and IMDb Parents' Guide slides when their sources are available.
+- Keep an explicit unavailable-source note when parental guidance cannot be retrieved.
 - Edit the finished slide in LibreOffice Impress and copy it into your presentation.
 
-Each slide has a bold, centered title, a movie summary with ratings, and a poster.
-Ratings use separate rows when space allows and share rows on crowded slides.
-Text uses Atkinson Hyperlegible Next on a 28 by 17.5 cm slide. The layout comes from
+Each deck starts with a bold, centered movie summary, ratings, poster, and TMDB link. It then adds
+an editable Common Sense Media overview, category tables, and an IMDb Parents' Guide table when
+the relevant sources are available. Ratings use separate rows when space allows and share rows on
+crowded slides. Text uses Atkinson Hyperlegible Next on a 28 by 17.5 cm slide. The layout comes from
 [`template/movie_slide_template.pptx`](template/movie_slide_template.pptx).
 
 ## Quick start
@@ -70,7 +72,7 @@ python3 make_movie_slide.py
 At the movie prompt, enter `Her (2013)`. If several matches appear, choose the intended movie from
 the numbered list. You can also enter `tmdb:152601` to select this film directly.
 When the command finishes, open `her_2013.odp` in the project folder with LibreOffice Impress.
-You now have an editable movie summary slide to use or copy into another presentation.
+You now have an editable movie deck to use or copy into another presentation.
 
 You can also enter an IMDb URL such as `https://www.imdb.com/title/tt0316654/` for Spider-Man 2;
 see [docs/USAGE.md](docs/USAGE.md) for the supported input forms.
@@ -96,9 +98,10 @@ The finished workflow uses current data gathered during each run:
 | Source | Available information |
 | --- | --- |
 | TMDB | Title, year, plot, genres, runtime, director, original language, ids, and poster |
-| IMDb | Rating and vote count |
+| IMDb | Rating, vote count, and available Parents' Guide categories and selected non-spoiler examples |
 | Rotten Tomatoes | Tomatometer, Popcornmeter, and critics consensus |
 | Metacritic | Metascore and display band |
+| Common Sense Media | Recommended age, overview, warning categories, and positive-content categories |
 
 TMDB access requires a v4 read token. Copy `tmdb_key_sample.yml` to the ignored `tmdb_key.yml` and
 replace the placeholder with your token before running live provider or pipeline work. Provider
@@ -110,6 +113,8 @@ bounded retry for HTTP 403 or 429.
 - Live verification on 2026-10-16 produced all five default movies, including a slide without a
   Metascore or review summary.
 - Missing metadata is omitted; unavailable language data does not imply English or subtitles.
+- Missing parental guidance is identified in the finished deck; it does not mean a movie has no
+  potentially upsetting material.
 - A poster is required. If the primary TMDB poster fails, alternate posters are tried; if none
   can be retrieved, that movie stops with an error.
 - The repository currently targets macOS, Python 3.12, LibreOffice Still, and Atkinson Hyperlegible Next.
@@ -137,4 +142,4 @@ For implementation history, see the
 
 ## License
 
-This software is available under the [MIT License](LICENSE.MIT.md).
+This software is available under the [MIT License](LICENSE.MIT).

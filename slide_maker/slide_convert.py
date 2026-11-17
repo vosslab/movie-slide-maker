@@ -29,6 +29,19 @@ REQUIRED_ROLES = (
 	slide_maker.slide_builder.TEMPLATE_OUTLINE_NAME,
 	slide_maker.slide_builder.TEMPLATE_POSTER_NAME,
 )
+GUIDANCE_ROLES = (
+	"guidance_title",
+	"guidance_body",
+	"guidance_overview",
+	"guidance_warning_heading",
+	"guidance_positive_heading",
+	"guidance_warnings",
+	"guidance_positive",
+	"guidance_table",
+	"guidance_source",
+)
+SUMMARY_ROLES = REQUIRED_ROLES + ("movie_source",)
+ALL_ROLES = SUMMARY_ROLES + GUIDANCE_ROLES
 GEOMETRY_TOLERANCE_CM = 0.1
 EXPECTED_PAGE_WIDTH_CM = 28.0
 EXPECTED_PAGE_HEIGHT_CM = 17.5
@@ -69,12 +82,16 @@ def length_cm(value: str) -> float:
 
 #============================================
 def named_frames(page: xml.etree.ElementTree.Element) -> dict[str, xml.etree.ElementTree.Element]:
-	"""Return movie frames indexed by their semantic draw names."""
+	"""Return named drawing objects indexed by their semantic roles.
+
+	LibreOffice writes placeholders as ``draw:frame`` but writes newly-added
+	editable text boxes as ``draw:custom-shape``.  Both retain geometry and text.
+	"""
 	name_attribute = f"{{{DRAW_NS}}}name"
 	frames: dict[str, xml.etree.ElementTree.Element] = {}
-	for frame in page.iter(f"{{{DRAW_NS}}}frame"):
+	for frame in page.iter():
 		name = frame.get(name_attribute)
-		if name in REQUIRED_ROLES:
+		if name in ALL_ROLES:
 			require(name not in frames, f"Converted movie slide has ambiguous role: {name}")
 			frames[name] = frame
 	return frames
@@ -118,7 +135,7 @@ def movie_pages(
 	content_root: xml.etree.ElementTree.Element,
 	expected_movie_slides: int = 1,
 ) -> list[xml.etree.ElementTree.Element]:
-	"""Return all and only the expected visible movie slides in document order."""
+	"""Return summary pages while accepting additional parental-guidance pages."""
 	require(expected_movie_slides > 0, "Expected movie-slide count must be positive")
 	pages = []
 	hidden_pages = []
@@ -127,11 +144,13 @@ def movie_pages(
 			hidden_pages.append(page)
 			continue
 		roles = set(named_frames(page))
-		require(
-			slide_maker.slide_builder.TEMPLATE_TITLE_NAME in roles,
-			f"Converted ODP has a visible non-movie slide with roles: {sorted(roles)!r}",
-		)
-		pages.append(page)
+		if slide_maker.slide_builder.TEMPLATE_TITLE_NAME in roles:
+			pages.append(page)
+		else:
+			require(
+				bool(roles.intersection(GUIDANCE_ROLES)),
+				f"Converted ODP has a visible non-movie slide with roles: {sorted(roles)!r}",
+			)
 	require(
 		len(hidden_pages) == 1,
 		f"Converted ODP has {len(hidden_pages)} hidden slides; expected one template",
@@ -141,6 +160,17 @@ def movie_pages(
 		f"Converted ODP has {len(pages)} visible movie slides; "
 		f"expected {expected_movie_slides}",
 	)
+	return pages
+
+
+#============================================
+def visible_pages(content_root: xml.etree.ElementTree.Element) -> list[xml.etree.ElementTree.Element]:
+	"""Return all visible summary and guidance pages in presentation order."""
+	pages = [
+		page for page in presentation_pages(content_root)
+		if not page_is_hidden(page, content_root)
+	]
+	require(bool(pages), "Converted ODP has no visible pages")
 	return pages
 
 
@@ -183,9 +213,13 @@ def validate_page_size(
 
 #============================================
 def validate_source_displayed_fields(source_shapes: dict[str, object]) -> None:
-	"""Validate the title and any included poster payload in one source slide."""
-	title = source_shapes[slide_maker.slide_builder.TEMPLATE_TITLE_NAME]
-	require(bool(title.text.strip()), "Source movie slide title is empty")
+	"""Validate required text and any included poster payload in one source page."""
+	if slide_maker.slide_builder.TEMPLATE_TITLE_NAME in source_shapes:
+		title = source_shapes[slide_maker.slide_builder.TEMPLATE_TITLE_NAME]
+		require(bool(title.text.strip()), "Source movie slide title is empty")
+	else:
+		title = source_shapes.get("guidance_title")
+		require(title is not None and bool(title.text.strip()), "Source guidance slide title is empty")
 	poster = source_shapes.get(slide_maker.slide_builder.TEMPLATE_POSTER_NAME)
 	if poster is not None:
 		require(bool(poster.image.blob), "Source movie slide poster payload is empty")
@@ -196,7 +230,7 @@ def source_movie_shape_sets(
 	pptx_path: pathlib.Path,
 	expected_movie_slides: int = 1,
 ) -> list[dict[str, object]]:
-	"""Return the expected source movie-shape sets in slide order."""
+	"""Return expected source summary-shape sets in movie order."""
 	require(expected_movie_slides > 0, "Expected movie-slide count must be positive")
 	presentation = pptx.Presentation(pptx_path)
 	require(
@@ -209,13 +243,15 @@ def source_movie_shape_sets(
 		if slide._element.get("show") == "0":
 			hidden_slides.append(slide)
 			continue
-		shapes = {shape.name: shape for shape in slide.shapes if shape.name in REQUIRED_ROLES}
-		require(
-			slide_maker.slide_builder.TEMPLATE_TITLE_NAME in shapes,
-			f"Source PPTX has a visible non-movie slide with roles: {sorted(shapes)!r}",
-		)
-		validate_source_displayed_fields(shapes)
-		shape_sets.append(shapes)
+		shapes = {shape.name: shape for shape in slide.shapes if shape.name in ALL_ROLES}
+		if slide_maker.slide_builder.TEMPLATE_TITLE_NAME in shapes:
+			validate_source_displayed_fields(shapes)
+			shape_sets.append(shapes)
+		else:
+			require(
+				bool(set(shapes).intersection(GUIDANCE_ROLES)),
+				f"Source PPTX has a visible non-movie slide with roles: {sorted(shapes)!r}",
+			)
 	require(
 		len(hidden_slides) == 1,
 		f"Source PPTX has {len(hidden_slides)} hidden slides; expected one template",
@@ -232,6 +268,21 @@ def source_movie_shape_sets(
 		f"Source PPTX has {len(shape_sets)} visible movie slides; "
 		f"expected {expected_movie_slides}",
 	)
+	return shape_sets
+
+
+#============================================
+def source_visible_shape_sets(pptx_path: pathlib.Path) -> list[dict[str, object]]:
+	"""Return every visible source page's named summary or guidance shapes."""
+	presentation = pptx.Presentation(pptx_path)
+	shape_sets = []
+	for slide in presentation.slides:
+		if slide._element.get("show") == "0":
+			continue
+		shapes = {shape.name: shape for shape in slide.shapes if shape.name in ALL_ROLES}
+		require(bool(shapes), "Source PPTX visible page has no semantic roles")
+		validate_source_displayed_fields(shapes)
+		shape_sets.append(shapes)
 	return shape_sets
 
 
@@ -257,12 +308,12 @@ def validate_geometry(
 
 #============================================
 def validate_displayed_fields(page: xml.etree.ElementTree.Element) -> None:
-	"""Validate that a converted movie slide retains its title."""
+	"""Validate that a converted summary or guidance page retains its title."""
 	frames = named_frames(page)
-	title_text = "".join(
-		frames[slide_maker.slide_builder.TEMPLATE_TITLE_NAME].itertext()
-	).strip()
-	require(bool(title_text), "Converted movie slide title is empty")
+	title = frames.get(slide_maker.slide_builder.TEMPLATE_TITLE_NAME)
+	if title is None:
+		title = frames.get("guidance_title")
+	require(title is not None and bool("".join(title.itertext()).strip()), "Converted page title is empty")
 
 
 #============================================
@@ -305,6 +356,47 @@ def validate_poster(
 
 
 #============================================
+def source_hyperlinks(shape: object) -> list[str]:
+	"""Return URLs attached to one source text shape or its runs."""
+	links = []
+	if shape.has_text_frame:
+		for paragraph in shape.text_frame.paragraphs:
+			for run in paragraph.runs:
+				address = run.hyperlink.address
+				if address and address not in links:
+					links.append(address)
+	address = shape.click_action.hyperlink.address
+	if address and address not in links:
+		links.append(address)
+	return links
+
+
+#============================================
+def source_shape_text(shape: object) -> str:
+	"""Return whitespace-normalized source text from a text box or native table."""
+	if shape.has_text_frame:
+		text = shape.text
+	elif shape.has_table:
+		text = " ".join(cell.text for row in shape.table.rows for cell in row.cells)
+	else:
+		text = ""
+	normalized = " ".join(text.split())
+	return normalized
+
+
+#============================================
+def converted_hyperlinks(frame: xml.etree.ElementTree.Element) -> list[str]:
+	"""Return URLs retained in one converted frame."""
+	attribute = f"{{{XLINK_NS}}}href"
+	links = []
+	for element in frame.iter():
+		address = element.get(attribute)
+		if address and address not in links:
+			links.append(address)
+	return links
+
+
+#============================================
 def validate_odp(
 	odp_path: pathlib.Path,
 	source_pptx_path: pathlib.Path,
@@ -314,11 +406,17 @@ def validate_odp(
 	require(odp_path.is_file(), f"LibreOffice did not create the expected ODP: {odp_path}")
 	require(zipfile.is_zipfile(odp_path), f"Converted output is not an ODP package: {odp_path}")
 	source_shape_sets = source_movie_shape_sets(source_pptx_path, expected_movie_slides)
+	source_visible_sets = source_visible_shape_sets(source_pptx_path)
 	with zipfile.ZipFile(odp_path) as archive:
 		content_root = parse_xml(archive, "content.xml")
 		styles_root = parse_xml(archive, "styles.xml")
 		pages = movie_pages(content_root, expected_movie_slides)
-		for index, (page, source_shapes) in enumerate(zip(pages, source_shape_sets, strict=True), 1):
+		visible = visible_pages(content_root)
+		require(
+			len(visible) == len(source_visible_sets),
+			"Converted ODP changed the visible summary/guidance page count",
+		)
+		for index, (page, source_shapes) in enumerate(zip(visible, source_visible_sets, strict=True), 1):
 			frames = named_frames(page)
 			require(
 				set(frames) == set(source_shapes),
@@ -329,15 +427,21 @@ def validate_odp(
 			validate_poster(archive, page)
 			validate_geometry(frames, source_shapes)
 			for role, shape in source_shapes.items():
-				if not shape.has_text_frame:
+				source_text = source_shape_text(shape)
+				if not source_text:
 					continue
 				converted_text = normalized_frame_text(frames[role])
 				# Paragraph boundaries are whitespace, not concatenated words.
-				source_text = " ".join(shape.text.split())
 				require(
 					converted_text == source_text,
 					f"Converted movie slide {index} changed {role} text",
 				)
+				for address in source_hyperlinks(shape):
+					require(
+						address in converted_hyperlinks(frames[role]),
+						f"Converted movie slide {index} lost {role} hyperlink",
+					)
+		require(len(pages) == len(source_shape_sets), "Converted summary pages changed during validation")
 
 
 #============================================

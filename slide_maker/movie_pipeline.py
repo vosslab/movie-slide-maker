@@ -21,6 +21,7 @@ import slide_maker.slide_convert
 import slide_maker.movie_identity
 import slide_maker.movie_resolver
 import slide_maker.metacritic_scraper
+import slide_maker.parental_guidance
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -59,6 +60,8 @@ class ProviderBundle:
 		],
 		slide_maker.movie_resolver.ResolvedTmdbMovie,
 	] | None = None
+	fetch_imdb_guidance: collections.abc.Callable[[str], slide_maker.parental_guidance.SourceGuidance] | None = None
+	fetch_csm_guidance: collections.abc.Callable[[str, str], slide_maker.parental_guidance.SourceGuidance] | None = None
 
 
 LIVE_PROVIDERS = ProviderBundle(
@@ -68,6 +71,8 @@ LIVE_PROVIDERS = ProviderBundle(
 	fetch_rt_rating=slide_maker.rt_scraper.fetch_rt_rating,
 	fetch_metacritic_rating=slide_maker.metacritic_scraper.fetch_metacritic_rating,
 	resolve_tmdb_movie=slide_maker.movie_resolver.resolve_tmdb_movie,
+	fetch_imdb_guidance=slide_maker.parental_guidance.fetch_imdb_guidance,
+	fetch_csm_guidance=slide_maker.parental_guidance.fetch_csm_guidance,
 )
 
 
@@ -237,6 +242,30 @@ def _fetch_metacritic(
 
 
 #============================================
+def _fetch_csm_guidance(
+	movie: slide_maker.tmdb_client.TmdbMovie,
+	providers: ProviderBundle,
+) -> slide_maker.parental_guidance.SourceGuidance:
+	"""Resolve Common Sense Media through bounded title-derived candidates."""
+	if movie.imdb_id is None:
+		raise MoviePipelineError("Common Sense Media requires an IMDb title id")
+	attempted_urls = []
+	last_error: slide_maker.parental_guidance.ParentalGuidanceSourceError | None = None
+	for slug in source_slug_candidates(movie.title, movie.year, "-"):
+		attempted_urls.append(f"{slide_maker.parental_guidance.CSM_MOVIE_ROOT}/{slug}")
+		try:
+			if providers.fetch_csm_guidance is None:
+				raise MoviePipelineError("Common Sense Media guidance fetcher is unavailable")
+			return providers.fetch_csm_guidance(slug, movie.imdb_id)
+		except slide_maker.parental_guidance.ParentalGuidanceSourceError as error:
+			last_error = error
+			continue
+	attempted = ", ".join(attempted_urls)
+	problem = f"bounded candidates failed; last source diagnostic: {last_error}"
+	raise _source_error("Common Sense Media", movie, attempted, problem)
+
+
+#============================================
 def _assemble_movie_data(
 	tmdb_movie: slide_maker.tmdb_client.TmdbMovie,
 	imdb_rating: slide_maker.imdb_ratings.ImdbRating | None,
@@ -244,6 +273,7 @@ def _assemble_movie_data(
 	metacritic_rating: slide_maker.metacritic_scraper.MetacriticRating | None,
 	title: str | None = None,
 	year: int | None = None,
+	guidance: slide_maker.parental_guidance.ParentalGuidance | None = None,
 ) -> slide_maker.moviedata.MovieData:
 	"""Assemble the independent provider values into one adaptable contract."""
 	# ASVS 2.2.1: validate supplied values independently at the provider boundary.
@@ -318,6 +348,7 @@ def _assemble_movie_data(
 		metascore_band=metascore_band,
 		poster_path=poster_path,
 		original_language=original_language,
+		guidance=guidance,
 	)
 	slide_maker.moviedata.validate_movie_data(movie_data)
 	return movie_data
@@ -501,6 +532,36 @@ def resolve_movie_data(
 			if _provider_identity_matches(candidate, tmdb_movie, "Metacritic", write_line):
 				metacritic_rating = candidate
 
+	guidance = None
+	if providers.fetch_imdb_guidance is not None or providers.fetch_csm_guidance is not None:
+		csm_guidance = None
+		imdb_guidance = None
+		diagnostics = []
+		if tmdb_movie.imdb_id is None:
+			diagnostics.append("IMDb title id unavailable")
+			_report_source_problem(write_line, "Parental guidance", diagnostics[-1])
+		else:
+			if providers.fetch_imdb_guidance is not None:
+				try:
+					imdb_guidance = providers.fetch_imdb_guidance(tmdb_movie.imdb_id)
+				except slide_maker.parental_guidance.ParentalGuidanceSourceError as error:
+					diagnostics.append(f"IMDb: {error}")
+					_report_source_problem(write_line, "IMDb parental guidance", error)
+			if providers.fetch_csm_guidance is not None:
+				try:
+					csm_guidance = _fetch_csm_guidance(tmdb_movie, providers)
+				except (
+					slide_maker.parental_guidance.ParentalGuidanceSourceError,
+					MoviePipelineError,
+				) as error:
+					diagnostics.append(f"Common Sense Media: {error}")
+					_report_source_problem(write_line, "Common Sense Media parental guidance", error)
+		guidance = slide_maker.parental_guidance.ParentalGuidance(
+			csm=csm_guidance,
+			imdb=imdb_guidance,
+			diagnostics=tuple(diagnostics),
+		)
+
 	movie_data = _assemble_movie_data(
 		tmdb_movie,
 		imdb_rating,
@@ -508,6 +569,7 @@ def resolve_movie_data(
 		metacritic_rating,
 		requested_title,
 		requested_year,
+		guidance,
 	)
 	return movie_data
 

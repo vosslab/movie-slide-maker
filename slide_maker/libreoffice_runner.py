@@ -1,31 +1,8 @@
-"""Run LibreOffice conversions without direct macOS application registration."""
+"""Run isolated headless LibreOffice document conversions."""
 
 # Standard Library
-import sys
 import pathlib
 import subprocess
-
-
-MACOS_APP_NAME = "LibreOffice"
-
-
-#============================================
-def _conversion_command(arguments: list[str]) -> list[str]:
-	"""Return the platform-safe LibreOffice launch command."""
-	if sys.platform == "darwin":
-		command = [
-			"open",
-			"-g",
-			"-n",
-			"-W",
-			"-a",
-			MACOS_APP_NAME,
-			"--args",
-			*arguments,
-		]
-	else:
-		command = ["soffice", *arguments]
-	return command
 
 
 #============================================
@@ -36,12 +13,6 @@ def convert_document(
 	profile_directory: pathlib.Path,
 ) -> subprocess.CompletedProcess[str]:
 	"""Run one synchronous LibreOffice document conversion.
-
-	On macOS, launching the application binary directly can intermittently abort
-	while AppKit registers the process and can leave a crash dialog on screen.
-	LaunchServices performs that registration safely, ``-g`` keeps the headless
-	process in the background, and ``-W`` retains the synchronous command
-	contract needed by the validation pipeline.
 
 	Args:
 		source_path: Existing presentation or document to convert.
@@ -62,14 +33,15 @@ def convert_document(
 		raise ValueError("LibreOffice output format must be nonempty")
 	output_directory.mkdir(parents=True, exist_ok=True)
 	arguments = [
-		f"-env:UserInstallation={profile_directory.resolve().as_uri()}",
 		"--headless",
+		"--norestore",
 		"--convert-to",
 		output_format,
+		f"-env:UserInstallation={profile_directory.resolve().as_uri()}",
 		"--outdir",
 		str(output_directory.resolve()),
 		str(source_path.resolve()),
 	]
-	command = _conversion_command(arguments)
+	command = ["soffice", *arguments]
 	result = subprocess.run(command, capture_output=True, text=True, check=False)
 	return result

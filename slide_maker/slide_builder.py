@@ -16,6 +16,7 @@ import pptx.enum.text
 import slide_maker.moviedata
 import slide_maker.emoji_marks
 import slide_maker.rating_layout
+import slide_maker.guidance_slides
 
 
 TEMPLATE_TITLE_NAME = "movie_title"
@@ -310,6 +311,25 @@ def fill_outline(slide: object, movie_data: slide_maker.moviedata.MovieData) -> 
 
 
 #============================================
+def add_tmdb_source(slide: object, movie_data: slide_maker.moviedata.MovieData) -> None:
+	"""Add an editable, clickable TMDB source link when the resolved id is known."""
+	if movie_data.tmdb_id is None:
+		return
+	url = f"https://www.themoviedb.org/movie/{movie_data.tmdb_id}"
+	slide_maker.guidance_slides.add_textbox(
+		slide,
+		"movie_source",
+		f"TMDB: {url}",
+		pptx.util.Cm(1.27),
+		pptx.util.Cm(16.75),
+		pptx.util.Cm(25.0),
+		pptx.util.Cm(0.4),
+		pptx.util.Pt(14),
+		url=url,
+	)
+
+
+#============================================
 def place_poster(slide: object, movie_data: slide_maker.moviedata.MovieData) -> object | None:
 	"""Replace the poster anchor with an aspect-preserving centered picture."""
 	poster_anchor = shape_by_name(slide, TEMPLATE_POSTER_NAME)
@@ -369,7 +389,25 @@ def append_movie_slide(presentation: object, movie_data: slide_maker.moviedata.M
 	fill_title(new_slide, movie_data)
 	place_poster(new_slide, movie_data)
 	fill_outline(new_slide, movie_data)
+	add_tmdb_source(new_slide, movie_data)
 	return new_slide
+
+
+#============================================
+def append_movie_section(
+	presentation: object,
+	movie_data: slide_maker.moviedata.MovieData,
+) -> list[object]:
+	"""Append one summary slide followed by each available guidance slide."""
+	summary_slide = append_movie_slide(presentation, movie_data)
+	template_slide = presentation.slides[0]
+	guidance_slides = slide_maker.guidance_slides.append_guidance_slides(
+		presentation,
+		template_slide,
+		movie_data,
+	)
+	slides = [summary_slide] + guidance_slides
+	return slides
 
 
 #============================================
@@ -381,7 +419,7 @@ def build_movie_presentation(
 	"""Load the extracted template, append one movie slide, and save the PPTX."""
 	require(template_path.is_file(), f"Movie slide template is absent: {template_path}")
 	presentation = pptx.Presentation(template_path)
-	append_movie_slide(presentation, movie_data)
+	append_movie_section(presentation, movie_data)
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 	presentation.save(output_path)
 	return output_path
