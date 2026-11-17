@@ -57,9 +57,8 @@ The current setup targets **macOS, Python 3.12, and LibreOffice Still**. Follow
 [docs/INSTALL.md](docs/INSTALL.md) for the dependencies, Atkinson Hyperlegible Next font, and your
 TMDB v4 read token. Once installed, you do not need to write code.
 
-Live websites can change or block requests. Some guidance error paths still need hardening;
-the [repository audit](docs/active_plans/audits/repository_audit_2026_11_17.md) records the known
-limitations. Review source guidance before a screening. A usable poster is required; alternate
+Live websites can change or block requests. Unavailable guidance is identified in the deck;
+review source guidance before a screening. A usable poster is required; alternate
 TMDB posters are tried if the primary image fails.
 
 Open Terminal in the project folder:
@@ -110,6 +109,21 @@ order. Each accepted movie gets a summary and its available guidance pages.
 Open `output_smoke/review_deck.odp`; per-page PNGs are in
 `output_smoke/review_deck_pages/`. Full input forms, outputs, and failure behavior are in
 [docs/USAGE.md](docs/USAGE.md).
+
+## Refresh README screenshots
+
+Run the dedicated [devel/capture_readme.py](devel/capture_readme.py) script from the project folder:
+
+```bash
+source source_me.sh && python3 devel/capture_readme.py
+```
+
+It fetches current movie data, rebuilds the slides, and replaces all eight images in
+`docs/screenshots/` using the same filenames, so the galleries update automatically.
+It requires the normal setup plus `pdftoppm` and `cwebp` (Homebrew packages `poppler` and `webp`).
+LibreOffice runs with `soffice --headless --norestore --convert-to`; no app window is opened.
+Agents must run this command outside the sandbox on this macOS host. Temporary files stay under
+`_temp/` and are removed when the run finishes. Live provider availability affects the captured content.
 
 ## Find your next step
 

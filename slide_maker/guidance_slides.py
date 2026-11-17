@@ -255,9 +255,9 @@ def append_imdb_slides(
 	guidance: slide_maker.parental_guidance.SourceGuidance,
 	diagnostics: tuple[str, ...] = (),
 ) -> list[object]:
-	"""Append readable IMDb tables, continuing after three detailed rows."""
+	"""Append readable IMDb tables, continuing after two detailed rows."""
 	slides = []
-	category_groups = [guidance.categories[index:index + 3] for index in range(0, len(guidance.categories), 3)]
+	category_groups = [guidance.categories[index:index + 2] for index in range(0, len(guidance.categories), 2)]
 	if not category_groups:
 		category_groups = [()]
 	for index, categories in enumerate(category_groups, 1):

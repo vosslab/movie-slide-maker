@@ -4,6 +4,10 @@
 
 ### Additions and New Features
 
+- Make the README visual-first with two compact clickable galleries: four movie summaries and
+  four Jurassic Park summary/guidance views. Refresh all eight WebPs at quality 90.
+- Add `devel/capture_readme.py` to repeat the headless slide captures and document their sources
+  in the README screenshot receipt.
 - Generate available Common Sense Media and IMDb Parents' Guide slides after each movie summary,
   using editable source-linked tables and selected non-spoiler examples.
 - Add a clickable TMDB record link to the footer of each generated movie summary slide.
@@ -15,6 +19,17 @@
 
 ### Fixes and Maintenance
 
+- Document the dedicated README screenshot refresh command and its tools. Always rebuild
+  Jurassic Park from current data instead of reusing an older smoke-test deck.
+  Verify a complete eight-image refresh, inspect the results, and pass pyflakes plus 38 README/link checks.
+- Fix optional IMDb request error handling, reject CSM IMDb ID prefix collisions, handle
+  unsupported CSM structured-data shapes, and require explicit non-spoiler example flags.
+- Delete the three generated temporary profile/render directories identified by the audit,
+  removing 106 tracked artifacts while preserving published decks and screenshots.
+- Split IMDb guidance after two categories so long 20-point examples fit without LibreOffice
+  expanding the table. Count review-deck slides before conversion removes the scratch PPTX.
+  Refresh the affected IMDb README preview and close the audit findings without new options
+  or helper layers.
 - Complete six independent repository audit passes and record unresolved provider error/identity
   findings in `docs/active_plans/audits/repository_audit_2026_11_17.md`.
 - Correct stale subprocess, multi-slide, Python setup, test timing, and render-evidence wording.
@@ -28,6 +43,17 @@
 
 ### Developer Tests and Notes
 
+- Audit fixes: the full suite passed 1,222 checks; live Jurassic Park guidance retrieval, ODP
+  conversion, and PDF export passed. The final five-movie live batch published a validated
+  28-page review deck and renders, including an expected optional CSM omission for A Ghost Waits.
+  Long IMDb tables for Her and It were inspected at 20-point text; strict geometry checks passed.
+- Verify the README entrypoint end to end with tt0107290, producing jurassic_park_1993.odp.
+  All eight encoded screenshots were inspected; 542 focused documentation, formatting, typing,
+  lint, and executable checks passed. README editorial score improved from 82 to 95.
+- The full screenshot-source review deck resolved five movies but failed existing guidance-table
+  geometry validation (0.597 cm expansion). Capture the four live summary examples separately;
+  export the validated Jurassic Park ODP for guidance views. Do not treat these captures as
+  full multi-movie guidance acceptance.
 - After pruning, all 1,198 collected checks passed in 2.51 seconds; 14 focused behavior checks
   and the retained headless guidance E2E passed. Diff checks are clean and no bytecode caches
   remain. Every live provider and the full live review deck were not rerun for this audit.

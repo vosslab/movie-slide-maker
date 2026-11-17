@@ -25,16 +25,17 @@ onboarding command. Detailed usage and setup stay in their existing documentatio
 | Presentation and currency | 8 | 10 | Fresh WebP gallery, alt text, source captions, and compact links |
 | Total | 82 | 95 | Editorial assessment against the readme-docs rubric |
 
-The remaining adoption limitation belongs to provider implementation: the existing repository
-audit identifies the error and identity paths requiring hardening. Its owner is the movie-data
-pipeline, target `slide_maker/parental_guidance.py` and its pipeline boundary. Success means
-unavailable optional guidance preserves the deck and only exact movie identities are accepted;
-verify those cases offline before a fresh live run. No additional documentation workstream or
-animation is needed for this refresh.
+At the initial capture, the remaining adoption limitation was provider error and identity handling.
+The subsequent authorized audit fixes closed those findings, with offline error/identity checks
+and successful live retrieval. The known batch table-expansion failure was also fixed through
+smaller fixed table pages. No additional documentation workstream or animation was needed.
 
 ## Verification
 
 The exact README entrypoint was executed with the documented environment and tt0107290 input.
 It produced `jurassic_park_1993.odp` through headless LibreOffice outside the sandbox.
-Image-capture details and final documentation checks are recorded in the companion screenshot
-receipt and changelog. No new production behavior or permanent test was introduced.
+Image-capture details are recorded in
+[readme_screenshots_2026_11_17.md](readme_screenshots_2026_11_17.md).
+Opening-paragraph, typing, pyflakes, and shebang checks passed 286 cases; Markdown links,
+ASCII, and whitespace checks passed 256 cases. All eight final WebPs were inspected.
+No new production behavior or permanent test was introduced.

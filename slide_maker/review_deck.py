@@ -450,6 +450,7 @@ def build_review_deck(
 		unused_scratch_path, summary_pages = build_scratch_deck(
 			accepted_movies, template_path, scratch_path,
 		)
+		visible_count = len(slide_maker.slide_convert.source_visible_shape_sets(scratch_path))
 		staged_product_path = work_directory / "review_deck.odp"
 		slide_maker.slide_convert.convert_presentation(
 			scratch_path,
@@ -458,7 +459,6 @@ def build_review_deck(
 		)
 		validate_deck_identities(staged_product_path, accepted_movies)
 		staged_page_directory = work_directory / "review_deck_pages"
-		visible_count = len(slide_maker.slide_convert.source_visible_shape_sets(scratch_path))
 		staged_page_paths = render_deck_pages(
 			staged_product_path,
 			staged_page_directory,

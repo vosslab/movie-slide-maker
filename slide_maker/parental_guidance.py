@@ -5,6 +5,7 @@ import re
 import json
 import html
 import dataclasses
+import urllib.parse
 
 # local repo modules
 import slide_maker.http_client
@@ -99,7 +100,10 @@ def fetch_imdb_guidance(imdb_id: str) -> SourceGuidance:
 	"""Fetch severity summaries and non-spoiler examples from IMDb's guide."""
 	normalized_id = slide_maker.imdb_ratings.normalize_imdb_id(imdb_id)
 	url = f"https://www.imdb.com/title/{normalized_id}/parentalguide/"
-	response = slide_maker.imdb_ratings.fetch_imdb_page(url)
+	try:
+		response = slide_maker.imdb_ratings.fetch_imdb_page(url)
+	except slide_maker.imdb_ratings.ImdbSourceError as error:
+		raise ParentalGuidanceSourceError(f"IMDb guidance request failed at {url}: {error}") from error
 	if response.status_code != 200:
 		raise ParentalGuidanceSourceError(f"IMDb returned HTTP {response.status_code} at {url}")
 	if f"/title/{normalized_id}/" not in str(response.url):
@@ -127,7 +131,7 @@ def fetch_imdb_guidance(imdb_id: str) -> SourceGuidance:
 			continue
 		example = ""
 		for item in category.get("items", []):
-			if not isinstance(item, dict) or item.get("isSpoiler"):
+			if not isinstance(item, dict) or item.get("isSpoiler") is not False:
 				continue
 			value = item.get("text")
 			if isinstance(value, str) and value.strip():
@@ -158,7 +162,9 @@ def _csm_json_ld(page: str, source_url: str) -> dict:
 		data = json.loads(match.group(1))
 	except json.JSONDecodeError as error:
 		raise ParentalGuidanceSourceError(f"Common Sense Media JSON-LD was invalid at {source_url}") from error
-	for record in data.get("@graph", []):
+	if not isinstance(data, dict) or not isinstance(data.get("@graph"), list):
+		raise ParentalGuidanceSourceError(f"Common Sense Media JSON-LD shape was invalid at {source_url}")
+	for record in data["@graph"]:
 		if isinstance(record, dict) and record.get("@type") == "Movie":
 			return record
 	raise ParentalGuidanceSourceError(f"Common Sense Media movie identity was absent at {source_url}")
@@ -179,7 +185,12 @@ def fetch_csm_guidance(slug: str, imdb_id: str) -> SourceGuidance:
 		raise ParentalGuidanceSourceError(f"Common Sense Media returned HTTP {response.status_code} at {url}")
 	movie = _csm_json_ld(response.text, url)
 	same_as = movie.get("sameAs")
-	if not isinstance(same_as, str) or normalized_id not in same_as:
+	linked_url = urllib.parse.urlsplit(same_as) if isinstance(same_as, str) else None
+	linked_id = re.fullmatch(r"/title/(tt[0-9]{7,10})/?", linked_url.path) if linked_url else None
+	if (
+		linked_url is None or linked_url.hostname not in ("imdb.com", "www.imdb.com")
+		or linked_id is None or linked_id.group(1) != normalized_id
+	):
 		raise ParentalGuidanceSourceError(f"Common Sense Media identity did not match {normalized_id}")
 	age_match = re.search(r'<span class="rating__age">\s*([^<]+)', response.text)
 	age = " ".join(age_match.group(1).split()) if age_match is not None else ""

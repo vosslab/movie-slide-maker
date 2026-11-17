@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture the current review deck and Jurassic Park guidance screenshots."""
+"""Refresh README screenshots: source source_me.sh && python3 devel/capture_readme.py."""
 
 # Standard Library
 import pathlib
@@ -30,9 +30,6 @@ import slide_maker.slide_convert
 
 
 SCREENSHOT_DIRECTORY = REPO_ROOT / "docs" / "screenshots"
-JURASSIC_SOURCE_PATH = (
-	REPO_ROOT / "output_smoke" / "guidance_live" / "jurassic_park_1993.odp"
-)
 REVIEW_OUTPUT_NAMES = {
 	"Her": "movie_slide_her.webp",
 	"Cooties": "movie_slide_cooties.webp",
@@ -172,15 +169,10 @@ def capture_review_deck(work_directory: pathlib.Path) -> dict[str, tuple[int, in
 #============================================
 def capture_jurassic_guidance(work_directory: pathlib.Path) -> dict[str, tuple[int, int, int]]:
 	"""Export the current Jurassic Park ODP headlessly and retain four useful views."""
-	if JURASSIC_SOURCE_PATH.is_file():
-		source_path = JURASSIC_SOURCE_PATH
-	else:
-		# A fresh checkout has no ignored smoke artifact, so recreate it through
-		# the same public pipeline that produces ordinary movie decks.
-		source_path = slide_maker.movie_pipeline.generate_movie_slide(
-			"tt0107290",
-			work_directory / "jurassic_source",
-		)
+	source_path = slide_maker.movie_pipeline.generate_movie_slide(
+		"tt0107290",
+		work_directory / "jurassic_source",
+	)
 	pdf_directory = work_directory / "jurassic_pdf"
 	conversion = slide_maker.libreoffice_runner.convert_document(
 		source_path,

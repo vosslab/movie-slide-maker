@@ -1,6 +1,6 @@
 # Repository audit and test pruning
 
-## Findings requiring follow-up
+## Findings and resolution
 
 - **High: optional IMDb failures abort movie generation.**
   `slide_maker/parental_guidance.py:102` calls the IMDb fetcher, which can raise
@@ -27,8 +27,15 @@
   does not cover that directory. Review those artifacts before committing; this audit
   did not alter the index or delete unrelated working material.
 
-The functional findings remain findings: the audit authorizes obvious low-risk fixes, while
-test pruning was separately authorized. No new permanent tests were added.
+The four functional findings were fixed after the user authorized implementation. The IMDb
+provider translates its existing request error, CSM validates its expected JSON shape and exact
+linked IMDb identity, and examples require an explicit false spoiler flag. Existing parser
+checks were extended; two small error-contract checks cover the demonstrated failure paths.
+
+The footer-helper observation required no refactor: the summary builder already imports guidance
+rendering to assemble complete movie sections. Reusing its text-box helper avoids duplication.
+The three generated `_temp/` profile/render directories were deleted (106 tracked files);
+the checkout's existing `_temp` ignore rule prevents new captures from being added accidentally.
 
 ## Independent passes
 
@@ -81,4 +88,10 @@ dependency or shared support file became unused; retained consumers still need t
 - `git diff --check`: clean; no bytecode cache directories remain.
 - Deleted-script references survive only in historical archived plans, preserved as history.
 
-This audit did not revalidate every live provider or rerun the entire multi-movie live review deck.
+The original audit did not revalidate every live provider or rerun the entire multi-movie live
+review deck. During the subsequent fixes, the full suite passed 1,222 checks and live Jurassic Park
+guidance retrieval succeeded for both providers. IMDb tables now continue after two categories;
+the five-movie live batch passed strict conversion validation and published 28 rendered pages.
+The batch also exposed a scratch-file ordering bug: slide counting now happens before conversion
+removes the accepted PPTX. This required moving the existing count, not retaining extra files.
+Long table renders for Her and It were inspected; the Jurassic Park IMDb README image was refreshed.
